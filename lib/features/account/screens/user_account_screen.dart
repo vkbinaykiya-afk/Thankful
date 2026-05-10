@@ -6,10 +6,15 @@ import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../shared/widgets/primary_button.dart';
+import '../models/subscription_state.dart';
 
-/// Matches `docs/reference/design_htmls/user_account_screen.html`.
+/// Account — styling aligned with `docs/reference/design_htmls/user_account_screen.html`.
 class UserAccountScreen extends StatelessWidget {
   const UserAccountScreen({super.key});
+
+  /// TODO: replace with RevenueCat / backend-driven state.
+  static const SubscriptionState _subscriptionState = SubscriptionState.activePaid;
 
   static String _displayName() {
     if (!SupabaseService.isInitialized) return 'Guest';
@@ -105,7 +110,10 @@ class UserAccountScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Padding(
-                      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                      padding: const EdgeInsets.only(
+                        top: AppSpacing.sm,
+                        bottom: AppSpacing.lg,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
@@ -164,94 +172,14 @@ class UserAccountScreen extends StatelessWidget {
                       ),
                     ),
                     SizedBox(height: AppSpacing.xs),
-                    Container(
-                      padding: const EdgeInsets.all(AppSpacing.md),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Annual',
-                                style: AppTextStyles.heading3.copyWith(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                  height: 1.2,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.cta,
-                                  borderRadius: BorderRadius.circular(100),
-                                ),
-                                child: Text(
-                                  'Trial',
-                                  style: AppTextStyles.micro.copyWith(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w400,
-                                    height: 1.4,
-                                    color: AppColors.background,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: AppSpacing.xs),
-                          Text(
-                            'Free trial — subscribe to keep journaling',
-                            style: AppTextStyles.caption.copyWith(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w400,
-                              height: 1.5,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                          SizedBox(height: AppSpacing.xs),
-                          Text(
-                            'Then \$7.99 / month or \$44.99 / year',
-                            style: AppTextStyles.micro.copyWith(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w400,
-                              height: 1.4,
-                              color: AppColors.textTertiary,
-                            ),
-                          ),
-                          SizedBox(height: AppSpacing.sm),
-                          Container(height: 0.5, color: AppColors.surfaceRaised),
-                          SizedBox(height: AppSpacing.sm),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: TextButton(
-                              onPressed: () {},
-                              style: TextButton.styleFrom(
-                                padding: EdgeInsets.zero,
-                                minimumSize: Size.zero,
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                foregroundColor: AppColors.error,
-                              ),
-                              child: Text(
-                                'Cancel trial',
-                                style: AppTextStyles.body.copyWith(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w400,
-                                  height: 1.5,
-                                  color: AppColors.error,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                    _SubscriptionCard(
+                      state: _subscriptionState,
+                      onBuySubscription: () =>
+                          context.push(AppRoutes.paywall),
+                      onCancelPaid: () =>
+                          context.push(AppRoutes.cancelConfirm),
+                      onCancelTrial: () =>
+                          context.push(AppRoutes.cancelConfirm),
                     ),
                     SizedBox(height: AppSpacing.lg),
                     Center(
@@ -278,6 +206,190 @@ class UserAccountScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _SubscriptionCard extends StatelessWidget {
+  const _SubscriptionCard({
+    required this.state,
+    required this.onBuySubscription,
+    required this.onCancelPaid,
+    required this.onCancelTrial,
+  });
+
+  final SubscriptionState state;
+  final VoidCallback onBuySubscription;
+  final VoidCallback onCancelPaid;
+  final VoidCallback onCancelTrial;
+
+  static TextStyle get _planStyle => AppTextStyles.heading3.copyWith(
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+        height: 1.2,
+        color: AppColors.textPrimary,
+      );
+
+  static TextStyle get _primaryLineStyle => AppTextStyles.caption.copyWith(
+        fontSize: 13,
+        fontWeight: FontWeight.w400,
+        height: 1.5,
+        color: AppColors.textSecondary,
+      );
+
+  static TextStyle get _secondaryLineStyle => AppTextStyles.micro.copyWith(
+        fontSize: 11,
+        fontWeight: FontWeight.w400,
+        height: 1.4,
+        color: AppColors.textTertiary,
+      );
+
+  static TextStyle get _cancelLinkStyle => AppTextStyles.body.copyWith(
+        fontSize: 15,
+        fontWeight: FontWeight.w400,
+        height: 1.5,
+        color: AppColors.error,
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: switch (state) {
+        SubscriptionState.activePaid => _buildActivePaid(context),
+        SubscriptionState.activeTrial => _buildActiveTrial(context),
+        SubscriptionState.lapsed => _buildLapsed(context),
+      },
+    );
+  }
+
+  Widget _badgeActive(String label, Color bg, Color fg) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(100),
+      ),
+      child: Text(
+        label,
+        style: AppTextStyles.micro.copyWith(
+          fontSize: 11,
+          fontWeight: FontWeight.w400,
+          height: 1.4,
+          color: fg,
+        ),
+      ),
+    );
+  }
+
+  /// Paid: plan + Active badge, price line, renews line, divider, cancel subscription.
+  Widget _buildActivePaid(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Annual', style: _planStyle),
+            _badgeActive('Active', AppColors.primary, AppColors.background),
+          ],
+        ),
+        SizedBox(height: AppSpacing.xs),
+        Text(r'$44.99 / year', style: _primaryLineStyle),
+        SizedBox(height: AppSpacing.xs),
+        Text('Renews May 9, 2027', style: _secondaryLineStyle),
+        SizedBox(height: AppSpacing.sm),
+        Container(height: 0.5, color: AppColors.surfaceRaised),
+        SizedBox(height: AppSpacing.sm),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            onPressed: onCancelPaid,
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              foregroundColor: AppColors.error,
+            ),
+            child: Text('Cancel subscription', style: _cancelLinkStyle),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Trial: plan + Trial badge, free-until line, then-pricing line, divider, cancel trial.
+  Widget _buildActiveTrial(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Annual', style: _planStyle),
+            _badgeActive('Trial', AppColors.cta, AppColors.background),
+          ],
+        ),
+        SizedBox(height: AppSpacing.xs),
+        Text('Free until May 14, 2026', style: _primaryLineStyle),
+        SizedBox(height: AppSpacing.xs),
+        Text(
+          r'Then $7.99 / month or $44.99 / year',
+          style: _secondaryLineStyle,
+        ),
+        SizedBox(height: AppSpacing.sm),
+        Container(height: 0.5, color: AppColors.surfaceRaised),
+        SizedBox(height: AppSpacing.sm),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            onPressed: onCancelTrial,
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              foregroundColor: AppColors.error,
+            ),
+            child: Text('Cancel trial', style: _cancelLinkStyle),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Lapsed: no plan + Lapsed badge, explanation line, buy CTA (no cancel row).
+  Widget _buildLapsed(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('No active plan', style: _planStyle),
+            _badgeActive(
+              'Lapsed',
+              AppColors.surfaceRaised,
+              AppColors.textTertiary,
+            ),
+          ],
+        ),
+        SizedBox(height: AppSpacing.xs),
+        Text(
+          'Your trial ended on May 2, 2026',
+          style: _primaryLineStyle,
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: AppSpacing.md),
+          child: PrimaryButton(
+            label: 'Buy subscription',
+            onPressed: onBuySubscription,
+          ),
+        ),
+      ],
     );
   }
 }

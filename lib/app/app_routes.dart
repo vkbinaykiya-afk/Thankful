@@ -4,6 +4,7 @@ abstract final class AppRoutes {
 
   static const launch = '/launch';
   static const signup = '/signup';
+  static const login = '/login';
   static const onboardingOnb1 = '/onboarding/onb1';
   static const onboardingOnb2 = '/onboarding/onb2';
   static const onboardingOnb3 = '/onboarding/onb3';
@@ -13,6 +14,7 @@ abstract final class AppRoutes {
   static const home = '/home';
   static const journalListing = '/journal';
   static const account = '/account';
+  static const cancelConfirm = '/cancel-confirm';
   static const session = '/session';
   static const entryReview = '/entry-review';
 }

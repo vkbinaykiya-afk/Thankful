@@ -12,16 +12,15 @@ import '../../../shared/widgets/monk_mascot.dart';
 import '../../../shared/widgets/oauth_continue_button.dart';
 import '../../../shared/widgets/thankful_app_title.dart';
 
-/// Matches [LaunchScreen] chrome (app name, centered monk, 80% hairline, ticker)
-/// with auth CTAs and footer per signup HTML.
-class SignupScreen extends StatefulWidget {
-  const SignupScreen({super.key});
+/// Same chrome as [SignupScreen] (title, monk, hairline, ticker) — login headline/footer.
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
 
   @override
-  State<SignupScreen> createState() => _SignupScreenState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _SignupScreenState extends State<SignupScreen>
+class _LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _entranceController;
   late final Animation<double> _fade;
@@ -176,9 +175,9 @@ class _SignupScreenState extends State<SignupScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Your thoughts,', style: AppTextStyles.heading1),
+                  Text('Welcome back', style: AppTextStyles.heading1),
                   Text(
-                    'finally heard.',
+                    'to Thankful',
                     style: AppTextStyles.heading1.copyWith(
                       color: AppColors.primary,
                     ),
@@ -191,14 +190,12 @@ class _SignupScreenState extends State<SignupScreen>
                   const SizedBox(height: AppSpacing.lg),
                   OAuthContinueButton(
                     kind: OAuthContinueKind.apple,
-                    onPressed: () =>
-                        context.go(AppRoutes.onboardingOnb1),
+                    onPressed: () => context.go(AppRoutes.home),
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   OAuthContinueButton(
                     kind: OAuthContinueKind.google,
-                    onPressed: () =>
-                        context.go(AppRoutes.onboardingOnb1),
+                    onPressed: () => context.go(AppRoutes.home),
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   Center(
@@ -208,15 +205,15 @@ class _SignupScreenState extends State<SignupScreen>
                       spacing: 0,
                       children: [
                         Text(
-                          'Already have an account? ',
+                          'New here? ',
                           style: AppTextStyles.caption.copyWith(
                             color: AppColors.textSecondary,
                           ),
                         ),
                         GestureDetector(
-                          onTap: () => context.go(AppRoutes.login),
+                          onTap: () => context.go(AppRoutes.signup),
                           child: Text(
-                            'Sign in',
+                            'Sign up',
                             style: AppTextStyles.caption.copyWith(
                               color: AppColors.primary,
                               fontWeight: FontWeight.w500,

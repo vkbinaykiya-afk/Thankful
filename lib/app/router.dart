@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 
 import 'app_routes.dart';
+import '../features/auth/screens/login_screen.dart';
 import '../features/auth/screens/signup_screen.dart';
 import '../features/onboarding/screens/demo_session_screen.dart';
 import '../features/onboarding/screens/launch_screen.dart';
@@ -11,6 +12,7 @@ import '../features/onboarding/screens/onboarding_convo_screen.dart';
 import '../features/paywall/screens/paywall_screen.dart';
 import '../features/home/screens/home_screen.dart';
 import '../features/journal/screens/journal_listing_screen.dart';
+import '../features/account/screens/cancel_confirm_screen.dart';
 import '../features/account/screens/user_account_screen.dart';
 import '../features/session/screens/voice_session_screen.dart';
 import '../features/entry/screens/entry_review_screen.dart';
@@ -20,6 +22,7 @@ final appRouter = GoRouter(
   routes: [
     GoRoute(path: AppRoutes.launch, builder: (_, _) => const LaunchScreen()),
     GoRoute(path: AppRoutes.signup, builder: (_, _) => const SignupScreen()),
+    GoRoute(path: AppRoutes.login, builder: (_, _) => const LoginScreen()),
     GoRoute(
       path: AppRoutes.onboardingOnb1,
       builder: (_, _) => const Onb1Screen(),
@@ -52,6 +55,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.account,
       builder: (_, _) => const UserAccountScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.cancelConfirm,
+      builder: (_, _) => const CancelConfirmScreen(),
     ),
     GoRoute(path: AppRoutes.session, builder: (_, _) => const VoiceSessionScreen()),
     GoRoute(
