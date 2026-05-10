@@ -2,55 +2,554 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_text_styles.dart';
+import '../../../shared/widgets/journal_entry_card.dart';
 import '../../../shared/widgets/monk_mascot.dart';
 import '../../../shared/widgets/primary_button.dart';
 
+/// Home — matches `docs/reference/design_htmls/screen8_home.html` (DS spacing: 6px grid).
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
+  /// CSS reference `.monk { width: 195px }`; on-device display scale (larger art, less edge whitespace).
+  static const double _monkCssWidthPx = 195;
+  static const double _monkDisplayZoom = 1.5;
+  static double get _monkDisplayWidth => _monkCssWidthPx * _monkDisplayZoom;
+
+  static const double _monkBottomPx = 18;
+
+  /// CSS `.entries-zone` — `height: 130px`; gap between cards **6px** (DS).
+  static const double _entriesZoneHeight = 130;
+
+  static const List<String> _weekdayNames = [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+  ];
+
+  static const List<String> _monthNames = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+
+  static String _greetingPhrase() {
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
+
+  static String _formatGreetingDate(DateTime d) =>
+      '${_weekdayNames[d.weekday - 1]}, ${_monthNames[d.month - 1]} ${d.day}';
+
+  /// Week starting Sunday (column order Sun … Sat), matching the HTML calendar.
+  static List<DateTime> _weekDaysContaining(DateTime anchor) {
+    final local = DateTime(anchor.year, anchor.month, anchor.day);
+    final daysBack =
+        local.weekday == DateTime.sunday ? 0 : local.weekday;
+    final sunday = local.subtract(Duration(days: daysBack));
+    return List.generate(
+      7,
+      (i) => sunday.add(Duration(days: i)),
+    );
+  }
+
+  static String _avatarLetter() {
+    if (!SupabaseService.isInitialized) return 'A';
+    final user = SupabaseService.client.auth.currentUser;
+    final metaName = user?.userMetadata?['name'];
+    if (metaName is String && metaName.trim().isNotEmpty) {
+      return metaName.trim()[0].toUpperCase();
+    }
+    final email = user?.email;
+    if (email != null && email.isNotEmpty) {
+      return email[0].toUpperCase();
+    }
+    return 'A';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final today = DateTime.now();
+    final weekDays = _weekDaysContaining(today);
+
+    // Demo visibility — replace with streak / entry queries.
+    const streakCount = 7;
+    const totalEntries = 12;
+    final loggedDays = <DateTime>{
+      weekDays[0],
+      weekDays[1],
+      weekDays[3],
+      weekDays[4],
+      weekDays[6],
+    };
+
+    // greeting-label: 11 / w400 / #A89E8E — greeting-date: 19 / w500 / #2C2416
+    final greetingSmall = _figtreeStyle(
+      fontSize: 11,
+      fontWeight: FontWeight.w400,
+      height: 1.4,
+      color: AppColors.textTertiary,
+    );
+    final dateLarge = _figtreeStyle(
+      fontSize: 19,
+      fontWeight: FontWeight.w500,
+      height: 1.3,
+      color: AppColors.textPrimary,
+    );
+    final statNumberStreak = _figtreeStyle(
+      fontSize: 16,
+      fontWeight: FontWeight.w500,
+      height: 1.2,
+      color: AppColors.streak,
+    );
+    final statNumberEntries = _figtreeStyle(
+      fontSize: 16,
+      fontWeight: FontWeight.w500,
+      height: 1.2,
+      color: AppColors.primary,
+    );
+    // stat-label: 9 / w400 / #7A7060
+    final statLabel = _figtreeStyle(
+      fontSize: 9,
+      fontWeight: FontWeight.w400,
+      height: 1.4,
+      color: AppColors.textSecondary,
+    );
+    // section-label: 13 / w500 / #A89E8E — view-all: 13 / w400 / #5E9A78
+    final sectionStyle = _figtreeStyle(
+      fontSize: 13,
+      fontWeight: FontWeight.w500,
+      height: 1,
+      color: AppColors.textTertiary,
+    );
+    final viewAllStyle = _figtreeStyle(
+      fontSize: 13,
+      fontWeight: FontWeight.w400,
+      height: 1,
+      color: AppColors.primary,
+    );
+
+    final todayEntries = _todayEntriesPlaceholder();
+
     return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Good morning', style: theme.textTheme.displayMedium),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text('Day streak: 0', style: theme.textTheme.bodySmall),
-                  const SizedBox(height: AppSpacing.xxl),
-                  Text('Past entries', style: theme.textTheme.displaySmall),
-                  const SizedBox(height: AppSpacing.md),
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        'No entries yet.',
-                        style: theme.textTheme.bodySmall,
+      backgroundColor: AppColors.background,
+      body: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.bottomCenter,
+        children: [
+          // Layer 1 — monk (below content z-order).
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: _monkBottomPx,
+            child: IgnorePointer(
+              child: _HomeMonkEntrance(width: _monkDisplayWidth),
+            ),
+          ),
+          // Layer 2 — SafeArea + scrollable column (screen8: padding 12 top, 22 horizontal).
+          Positioned.fill(
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screenH,
+                  AppSpacing.screenTop,
+                  AppSpacing.screenH,
+                  0,
+                ),
+                child: SingleChildScrollView(
+                  physics: const ClampingScrollPhysics(),
+                  clipBehavior: Clip.hardEdge,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // 1. Greeting row — baseline align date + avatar per mock.
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(_greetingPhrase(), style: greetingSmall),
+                          SizedBox(height: AppSpacing.xs),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.baseline,
+                            textBaseline: TextBaseline.alphabetic,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _formatGreetingDate(today),
+                                  style: dateLarge,
+                                ),
+                              ),
+                              Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () =>
+                                      context.push(AppRoutes.account),
+                                  borderRadius: BorderRadius.circular(15),
+                                  child: Container(
+                                    width: 30,
+                                    height: 30,
+                                    alignment: Alignment.center,
+                                    decoration: const BoxDecoration(
+                                      color: AppColors.surface,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Text(
+                                      _avatarLetter(),
+                                      style: _figtreeStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                        height: 1,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                    ),
+                      SizedBox(height: AppSpacing.sm),
+
+                      // 2. Stat cards
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _StatCard(
+                              value: '$streakCount',
+                              label: 'day streak',
+                              valueStyle: statNumberStreak,
+                              labelStyle: statLabel,
+                            ),
+                          ),
+                          SizedBox(width: AppSpacing.xs),
+                          Expanded(
+                            child: _StatCard(
+                              value: '$totalEntries',
+                              label: 'total entries',
+                              valueStyle: statNumberEntries,
+                              labelStyle: statLabel,
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: AppSpacing.sm),
+
+                      // 3. Calendar strip
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          for (var i = 0; i < 7; i++)
+                            _CalendarDayColumn(
+                              letter: _calendarLetter(
+                                weekDays[i].weekday,
+                              ),
+                              dayNum: weekDays[i].day,
+                              logged: loggedDays.any(
+                                (d) =>
+                                    d.year == weekDays[i].year &&
+                                    d.month == weekDays[i].month &&
+                                    d.day == weekDays[i].day,
+                              ),
+                            ),
+                        ],
+                      ),
+                      SizedBox(height: AppSpacing.sm),
+
+                      // 4. Section row
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Today', style: sectionStyle),
+                          GestureDetector(
+                            onTap: () =>
+                                context.push(AppRoutes.journalListing),
+                            child: Text('View all', style: viewAllStyle),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: AppSpacing.xs),
+
+                      // 5. Entries zone (fixed height; inner scroll)
+                      SizedBox(
+                        height: _entriesZoneHeight,
+                        child: ScrollConfiguration(
+                          behavior: ScrollConfiguration.of(context).copyWith(
+                            scrollbars: false,
+                          ),
+                          child: SingleChildScrollView(
+                            physics: const ClampingScrollPhysics(),
+                            clipBehavior: Clip.hardEdge,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                for (var i = 0;
+                                    i < todayEntries.length;
+                                    i++) ...[
+                                  if (i > 0)
+                                    SizedBox(height: AppSpacing.xs),
+                                  JournalEntryCard(
+                                    timeLabel: todayEntries[i].timeLabel,
+                                    body: todayEntries[i].body,
+                                    durationLabel:
+                                        todayEntries[i].durationLabel,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // 6. CTA — margin-top 18px; margin-bottom 24px (last in column).
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          top: AppSpacing.md,
+                          bottom: AppSpacing.screenBot,
+                        ),
+                        child: PrimaryButton(
+                          label: 'Make another entry',
+                          onPressed: () =>
+                              context.go(AppRoutes.onboardingConvo),
+                        ),
+                      ),
+                    ],
                   ),
-                  PrimaryButton(
-                    label: 'Start Session',
-                    onPressed: () => context.go(AppRoutes.session),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                ],
+                ),
               ),
             ),
-            const Positioned(
-              right: -20,
-              bottom: 60,
-              child: MonkMascot(state: MonkState.meditation),
-            ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Replace with persisted “today” entries; length **> 1** uses scroll inside [_entriesZoneHeight].
+  static List<_HomeJournalSnippet> _todayEntriesPlaceholder() {
+    return [
+      _HomeJournalSnippet(
+        timeLabel: '9:14 AM',
+        body:
+            'Today I woke up feeling a quiet kind of grateful. Not the big, loud kind — just a small warmth when I made my tea.',
+        durationLabel: '4 min 12 sec',
+      ),
+      _HomeJournalSnippet(
+        timeLabel: '2:38 PM',
+        body:
+            'Walked by the park on the way back. Stopped for a moment. Didn\'t need to — just wanted to. That felt like something.',
+        durationLabel: '1 min 48 sec',
+      ),
+      _HomeJournalSnippet(
+        timeLabel: '7:05 PM',
+        body:
+            'Caught up with an old friend. We laughed about nothing in particular — that was the nicest part.',
+        durationLabel: '3 min 01 sec',
+      ),
+      _HomeJournalSnippet(
+        timeLabel: '8:22 PM',
+        body:
+            'Left the dishes for tomorrow without guilt. Small win, maybe — but it felt honest.',
+        durationLabel: '2 min 06 sec',
+      ),
+    ];
+  }
+
+  static String _calendarLetter(int weekday) {
+    switch (weekday) {
+      case DateTime.monday:
+        return 'M';
+      case DateTime.tuesday:
+      case DateTime.thursday:
+        return 'T';
+      case DateTime.wednesday:
+        return 'W';
+      case DateTime.friday:
+        return 'F';
+      case DateTime.saturday:
+      case DateTime.sunday:
+        return 'S';
+      default:
+        return '';
+    }
+  }
+}
+
+/// CSS `.monk` + DS §9: `opacity` 0→1, `translateY` 8px→0, **600ms** `ease-out`; centered (`left:50%` / `translateX(-50%)`).
+class _HomeMonkEntrance extends StatefulWidget {
+  const _HomeMonkEntrance({required this.width});
+
+  final double width;
+
+  @override
+  State<_HomeMonkEntrance> createState() => _HomeMonkEntranceState();
+}
+
+class _HomeMonkEntranceState extends State<_HomeMonkEntrance>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 600),
+  );
+  late final Animation<double> _opacity;
+  late final Animation<double> _translateY;
+
+  @override
+  void initState() {
+    super.initState();
+    final curved = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOut,
+    );
+    _opacity = Tween<double>(begin: 0, end: 1).animate(curved);
+    _translateY = Tween<double>(begin: 8, end: 0).animate(curved);
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Opacity(
+          opacity: _opacity.value,
+          child: Transform.translate(
+            offset: Offset(0, _translateY.value),
+            child: child,
+          ),
+        );
+      },
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: MonkMascot(
+          state: MonkState.watering,
+          width: widget.width,
+          multiplyWithBackground: true,
         ),
       ),
     );
   }
 }
+
+class _HomeJournalSnippet {
+  const _HomeJournalSnippet({
+    required this.timeLabel,
+    required this.body,
+    required this.durationLabel,
+  });
+
+  final String timeLabel;
+  final String body;
+  final String durationLabel;
+}
+
+TextStyle _figtreeStyle({
+  required double fontSize,
+  required FontWeight fontWeight,
+  required double height,
+  required Color color,
+}) =>
+    AppTextStyles.captionMedium.copyWith(
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      height: height,
+      color: color,
+    );
+
+class _StatCard extends StatelessWidget {
+  const _StatCard({
+    required this.value,
+    required this.label,
+    required this.valueStyle,
+    required this.labelStyle,
+  });
+
+  final String value;
+  final String label;
+  final TextStyle valueStyle;
+  final TextStyle labelStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(value, style: valueStyle),
+          SizedBox(height: AppSpacing.xs),
+          Text(label, style: labelStyle),
+        ],
+      ),
+    );
+  }
+}
+
+class _CalendarDayColumn extends StatelessWidget {
+  const _CalendarDayColumn({
+    required this.letter,
+    required this.dayNum,
+    required this.logged,
+  });
+
+  final String letter;
+  final int dayNum;
+  final bool logged;
+
+  @override
+  Widget build(BuildContext context) {
+    // cal-ltr: 9 / w400 / #A89E8E @ 0.55 — cal-num: 13 / w500 / #A89E8E (logged: #5E9A78)
+    final letterStyle = _figtreeStyle(
+      fontSize: 9,
+      fontWeight: FontWeight.w400,
+      height: 1,
+      color: AppColors.textTertiary.withValues(alpha: 0.55),
+    );
+    final numColor =
+        logged ? AppColors.primary : AppColors.textTertiary;
+    final numStyle = _figtreeStyle(
+      fontSize: 13,
+      fontWeight: FontWeight.w500,
+      height: 1,
+      color: numColor,
+    );
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(letter, style: letterStyle),
+        SizedBox(height: AppSpacing.xs),
+        Text('$dayNum', style: numStyle),
+      ],
+    );
+  }
+}
+

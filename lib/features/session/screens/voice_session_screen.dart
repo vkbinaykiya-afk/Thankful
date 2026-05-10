@@ -5,6 +5,7 @@ import '../../../app/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../shared/widgets/monk_mascot.dart';
 import '../../../shared/widgets/primary_button.dart';
+import '../../../shared/widgets/secondary_button.dart';
 
 /// Placeholder voice session — wire to Deepgram / TTS / LLM later.
 class VoiceSessionScreen extends StatelessWidget {
@@ -33,7 +34,14 @@ class VoiceSessionScreen extends StatelessWidget {
                   ),
                   PrimaryButton(
                     label: 'Finish session',
-                    onPressed: () => context.go(AppRoutes.entryReview),
+                    onPressed: () =>
+                        context.go(AppRoutes.paywall, extra: true),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  SecondaryButton(
+                    label: 'Start over',
+                    onPressed: () =>
+                        context.go(AppRoutes.onboardingConvo),
                   ),
                   const SizedBox(height: AppSpacing.lg),
                 ],

@@ -11,6 +11,8 @@ abstract final class AppRoutes {
   static const demo = '/demo';
   static const paywall = '/paywall';
   static const home = '/home';
+  static const journalListing = '/journal';
+  static const account = '/account';
   static const session = '/session';
   static const entryReview = '/entry-review';
 }

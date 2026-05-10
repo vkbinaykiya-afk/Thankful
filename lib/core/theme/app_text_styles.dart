@@ -47,6 +47,14 @@ class AppTextStyles {
         color: AppColors.textPrimary,
       );
 
+  /// Primary & secondary CTA labels — `Post_entry_review_screen.html` (14px / 500).
+  static TextStyle get ctaLabel => GoogleFonts.figtree(
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+        height: 1.2,
+        color: AppColors.textPrimary,
+      );
+
   static TextStyle get journal => GoogleFonts.figtree(
         fontSize: 15,
         fontWeight: FontWeight.w400,

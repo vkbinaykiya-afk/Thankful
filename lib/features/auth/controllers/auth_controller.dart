@@ -21,6 +21,7 @@ class AuthController extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    if (!SupabaseService.isInitialized) return;
     await SupabaseService.client.auth.signOut();
   }
 

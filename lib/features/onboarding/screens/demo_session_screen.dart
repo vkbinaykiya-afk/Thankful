@@ -33,7 +33,8 @@ class DemoSessionScreen extends StatelessWidget {
                   ),
                   PrimaryButton(
                     label: 'Continue',
-                    onPressed: () => context.go(AppRoutes.paywall),
+                    onPressed: () =>
+                        context.go(AppRoutes.entryReview, extra: true),
                   ),
                   const SizedBox(height: AppSpacing.lg),
                 ],

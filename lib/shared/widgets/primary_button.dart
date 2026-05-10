@@ -3,16 +3,21 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_radius.dart';
 import '../../core/theme/app_text_styles.dart';
 
+/// Full-width CTA — matches reference HTML (e.g. `.btn-new`: **48px** tall, pill radius,
+/// `#E09050` / `#FAFAF8`, **14px / w500**).
 class PrimaryButton extends StatefulWidget {
   final String label;
   final VoidCallback? onPressed;
   final bool isLoading;
+
+  final double height;
 
   const PrimaryButton({
     super.key,
     required this.label,
     this.onPressed,
     this.isLoading = false,
+    this.height = 48,
   });
 
   @override
@@ -38,7 +43,7 @@ class _PrimaryButtonState extends State<PrimaryButton> {
         curve: Curves.easeIn,
         opacity: _pressed ? 0.82 : 1.0,
         child: Container(
-          height: 52,
+          height: widget.height,
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 24),
           decoration: BoxDecoration(
@@ -57,7 +62,11 @@ class _PrimaryButtonState extends State<PrimaryButton> {
                 )
               : Text(
                   widget.label,
-                  style: AppTextStyles.bodyMedium.copyWith(color: fg),
+                  style: AppTextStyles.ctaLabel.copyWith(
+                    color: fg,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
         ),
       ),

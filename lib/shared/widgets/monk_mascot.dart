@@ -1,8 +1,18 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 
-enum MonkState { namaste, meditation, writing, milestone, bowed }
+/// Home uses [watering] (`Monk_watering.png`) — bottom-centred, reference `screen8_home.html`.
+enum MonkState {
+  namaste,
+  meditation,
+  writing,
+  watering,
+  milestone,
+  bowed,
+}
 
 class MonkMascot extends StatelessWidget {
   final MonkState state;
@@ -13,8 +23,8 @@ class MonkMascot extends StatelessWidget {
   /// Ignores [width] for layout.
   final double? layoutHeight;
 
-  /// Knocks out harsh white in raster edges by multiplying with [AppColors.background]
-  /// (same intent as `mix-blend-mode: multiply` in reference HTML).
+  /// Mimics CSS `mix-blend-mode: multiply` with screen background ([AppColors.background]).
+  /// Applied via [ColorFiltered] so decoding is not delegated to Image color APIs.
   final bool multiplyWithBackground;
 
   const MonkMascot({
@@ -33,6 +43,8 @@ class MonkMascot extends StatelessWidget {
         return 'assets/mascot/Meditating_Monk.png';
       case MonkState.writing:
         return 'assets/mascot/Writing_monk.png';
+      case MonkState.watering:
+        return 'assets/mascot/Monk_watering.png';
       case MonkState.milestone:
         return 'assets/mascot/monk_milestone.png';
       case MonkState.bowed:
@@ -42,48 +54,57 @@ class MonkMascot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = multiplyWithBackground ? AppColors.background : null;
-    final blend =
-        multiplyWithBackground ? BlendMode.multiply : null;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    /// Downscale raster decode (~195 CSS px wide art) — helps large PNGs reliably decode.
+    final cacheW = math.max(
+      1,
+      (width * dpr).round().clamp(200, 900),
+    );
 
-    if (layoutHeight != null) {
-      final h = layoutHeight!;
-      final image = Image.asset(
+    Widget imageFromAsset({double? h, double? w}) {
+      return Image.asset(
         _assetPath,
+        width: h == null ? w : null,
         height: h,
-        fit: BoxFit.fitHeight,
+        fit: h != null ? BoxFit.fitHeight : BoxFit.contain,
         alignment: Alignment.bottomCenter,
         filterQuality: FilterQuality.medium,
         gaplessPlayback: true,
-        color: color,
-        colorBlendMode: blend,
-        errorBuilder: (_, _, _) => SizedBox(
-          height: h,
-          width: h,
-          child: ColoredBox(color: AppColors.surfaceRaised),
-        ),
-      );
-      return ClipRect(
-        child: Align(
-          alignment: Alignment.bottomCenter,
-          child: image,
-        ),
+        cacheWidth: cacheW,
+        errorBuilder: (_, error, _) {
+          debugPrint('MonkMascot failed to load $_assetPath: $error');
+          return SizedBox(
+            width: w ?? width,
+            height: h ?? w ?? width,
+            child: const ColoredBox(color: AppColors.surfaceRaised),
+          );
+        },
       );
     }
 
-    return Image.asset(
-      _assetPath,
-      width: width,
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.medium,
-      gaplessPlayback: true,
-      color: color,
-      colorBlendMode: blend,
-      errorBuilder: (_, _, _) => SizedBox(
-        width: width,
-        height: width,
-        child: ColoredBox(color: AppColors.surfaceRaised),
-      ),
-    );
+    Widget core;
+    if (layoutHeight != null) {
+      final h = layoutHeight!;
+      core = ClipRect(
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: imageFromAsset(h: h, w: width),
+        ),
+      );
+    } else {
+      core = imageFromAsset(w: width);
+    }
+
+    if (multiplyWithBackground) {
+      core = ColorFiltered(
+        colorFilter: ColorFilter.mode(
+          AppColors.background,
+          BlendMode.multiply,
+        ),
+        child: core,
+      );
+    }
+
+    return core;
   }
 }

@@ -29,8 +29,10 @@ class _SecondaryButtonState extends State<SecondaryButton> {
       onTapUp: disabled ? null : (_) => setState(() => _pressed = false),
       onTapCancel: disabled ? null : () => setState(() => _pressed = false),
       onTap: disabled ? null : widget.onPressed,
-      child: Container(
-        height: 52,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeIn,
+        height: 48,
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 24),
         decoration: BoxDecoration(
@@ -44,7 +46,7 @@ class _SecondaryButtonState extends State<SecondaryButton> {
         alignment: Alignment.center,
         child: Text(
           widget.label,
-          style: AppTextStyles.bodyMedium.copyWith(color: AppColors.primary),
+          style: AppTextStyles.ctaLabel.copyWith(color: AppColors.primary),
         ),
       ),
     );

@@ -10,6 +10,8 @@ import '../features/onboarding/screens/onb3_screen.dart';
 import '../features/onboarding/screens/onboarding_convo_screen.dart';
 import '../features/paywall/screens/paywall_screen.dart';
 import '../features/home/screens/home_screen.dart';
+import '../features/journal/screens/journal_listing_screen.dart';
+import '../features/account/screens/user_account_screen.dart';
 import '../features/session/screens/voice_session_screen.dart';
 import '../features/entry/screens/entry_review_screen.dart';
 
@@ -35,12 +37,29 @@ final appRouter = GoRouter(
       builder: (_, _) => const OnboardingConvoScreen(),
     ),
     GoRoute(path: AppRoutes.demo, builder: (_, _) => const DemoSessionScreen()),
-    GoRoute(path: AppRoutes.paywall, builder: (_, _) => const PaywallScreen()),
+    GoRoute(
+      path: AppRoutes.paywall,
+      builder: (context, state) {
+        final onboarding = state.extra == true;
+        return PaywallScreen(showOnboardingProgress: onboarding);
+      },
+    ),
     GoRoute(path: AppRoutes.home, builder: (_, _) => const HomeScreen()),
+    GoRoute(
+      path: AppRoutes.journalListing,
+      builder: (_, _) => const JournalListingScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.account,
+      builder: (_, _) => const UserAccountScreen(),
+    ),
     GoRoute(path: AppRoutes.session, builder: (_, _) => const VoiceSessionScreen()),
     GoRoute(
       path: AppRoutes.entryReview,
-      builder: (_, _) => const EntryReviewScreen(),
+      builder: (context, state) {
+        final onboarding = state.extra == true;
+        return EntryReviewScreen(showOnboardingProgress: onboarding);
+      },
     ),
   ],
 );

@@ -281,7 +281,8 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
                   shape: const CircleBorder(),
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
-                    onTap: () => context.go(AppRoutes.demo),
+                    onTap: () =>
+                        context.go(AppRoutes.entryReview, extra: true),
                     customBorder: const CircleBorder(),
                     child: Ink(
                       width: stopExtent,
