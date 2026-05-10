@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/figtree@5/400.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/figtree@5/500.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+body{
+  font-family:"Figtree",sans-serif;
+  background:#E8E4DC;
+  display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:center;
+  min-height:100vh;padding:48px 36px;
+  gap:36px;
+}
+
+/* ── Phone shell ── */
+.phone-wrap{display:flex;flex-direction:column;align-items:center;gap:12px;}
+.phone{
+  width:280px;aspect-ratio:9/19.5;border-radius:40px;overflow:hidden;
+  background:#FAFAF8;display:flex;flex-direction:column;
+  box-shadow:0 0 0 1.5px rgba(0,0,0,0.1);
+}
+.state-label{
+  font-family:"Figtree",sans-serif;
+  font-size:13px;font-weight:400;color:#8C7E6E;
+}
+
+/* ── Status bar ── */
+.sb{
+  display:flex;justify-content:space-between;
+  padding:12px 22px 0;
+  font-size:8.5px;font-weight:500;color:#2C241650;flex-shrink:0;
+}
+
+/* ── Top bar ── */
+.topbar{
+  position:relative;
+  display:flex;align-items:center;justify-content:center;
+  padding:10px 22px 12px;flex-shrink:0;
+}
+.back-btn{
+  position:absolute;left:22px;
+  background:none;border:none;cursor:pointer;padding:0;
+  display:flex;align-items:center;
+  transition:opacity 100ms ease-in;
+}
+.back-btn:active{opacity:0.5;}
+.screen-title{font-size:16px;font-weight:500;color:#2C2416;line-height:1;}
+
+/* ── Scrollable content ── */
+.content{
+  flex:1;overflow-y:auto;padding:6px 22px 24px;
+  display:flex;flex-direction:column;
+  -webkit-overflow-scrolling:touch;
+}
+.content::-webkit-scrollbar{display:none;}
+
+/* ── User profile — centered ── */
+.profile{
+  display:flex;flex-direction:column;align-items:center;
+  padding:12px 0 24px;flex-shrink:0;
+}
+.avatar{
+  width:54px;height:54px;border-radius:50%;
+  background:#F0EDE6;
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:12px;
+}
+.avatar-letter{font-size:19px;font-weight:500;color:#7A7060;}
+.user-name{
+  font-size:19px;font-weight:500;
+  color:#2C2416;line-height:1.25;
+  margin-bottom:6px;
+}
+.user-email{
+  font-size:13px;font-weight:400;
+  color:#A89E8E;line-height:1.4;
+}
+
+/* ── Divider — DS spec ── */
+.divider{height:0.5px;background:#F0EDE6;flex-shrink:0;margin:0 0 18px;}
+
+/* ── Section label ── */
+.section-label{
+  font-size:13px;font-weight:500;color:#A89E8E;
+  line-height:1;margin-bottom:6px;flex-shrink:0;
+}
+
+/* ── Subscription card ── */
+.sub-card{
+  background:#F0EDE6;border-radius:16px;
+  padding:18px;flex-shrink:0;
+}
+.sub-header{
+  display:flex;align-items:center;
+  justify-content:space-between;
+  margin-bottom:6px;
+}
+.sub-plan{font-size:16px;font-weight:500;color:#2C2416;line-height:1.2;}
+
+/* Badge — 11px 400 per DS micro spec */
+.badge{
+  font-size:11px;font-weight:400;
+  border-radius:100px;padding:2px 8px;line-height:1.4;
+}
+.badge-active{background:#5E9A78;color:#FAFAF8;}
+.badge-trial{background:#E09050;color:#FAFAF8;}
+.badge-lapsed{background:#E8E4DC;color:#A89E8E;}
+
+.sub-primary{
+  font-size:13px;font-weight:400;color:#7A7060;
+  line-height:1.5;
+}
+.sub-secondary{
+  font-size:11px;font-weight:400;color:#A89E8E;
+  line-height:1.4;margin-top:6px;
+}
+
+/* Divider inside card */
+.sub-divider{height:0.5px;background:#E8E4DC;margin:12px 0;}
+
+/* Cancel — destructive, DS text link spec with error colour */
+.cancel-link{
+  font-size:15px;font-weight:400;color:#C0392B;
+  background:none;border:none;cursor:pointer;
+  padding:0;text-align:left;
+  transition:opacity 100ms ease-in;
+}
+.cancel-link:active{opacity:0.65;}
+
+/* Buy subscription — primary CTA inside lapsed card */
+.btn-buy{
+  width:100%;height:48px;border-radius:100px;
+  border:none;background:#E09050;color:#FAFAF8;
+  font-size:14px;font-weight:500;
+  font-family:"Figtree",sans-serif;
+  cursor:pointer;margin-top:18px;
+  display:block;transition:opacity 100ms ease-in;
+}
+.btn-buy:active{opacity:.82;}
+
+/* ── Sign out — pinned bottom, tertiary ── */
+.bottom{margin-top:auto;padding-top:24px;text-align:center;}
+.signout-btn{
+  font-size:15px;font-weight:400;color:#A89E8E;
+  background:none;border:none;cursor:pointer;
+  transition:opacity 100ms ease-in;
+}
+.signout-btn:active{opacity:0.65;}
+
+/* ── Home indicator ── */
+.hi{
+  width:56px;height:3px;border-radius:2px;
+  background:#2C2416;opacity:.14;
+  margin:8px auto 14px;flex-shrink:0;
+}
+</style>
+</head>
+<body>
+
+<!-- ── Active subscriber (trial shown) ── -->
+<div class="phone-wrap">
+<div class="phone">
+
+  <div class="sb"><span>9:41</span><span>●●●</span></div>
+
+  <div class="topbar">
+    <button class="back-btn" aria-label="Back">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#7A7060" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 4L6 9L11 14"/>
+      </svg>
+    </button>
+    <span class="screen-title">Account</span>
+  </div>
+
+  <div class="content">
+
+    <div class="profile">
+      <div class="avatar"><span class="avatar-letter">A</span></div>
+      <div class="user-name">Arjun Mehta</div>
+      <div class="user-email">arjun@gmail.com</div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section-label">Subscription</div>
+    <div class="sub-card">
+      <div class="sub-header">
+        <span class="sub-plan">Annual</span>
+        <span class="badge badge-trial">Trial</span>
+      </div>
+      <div class="sub-primary">Free until May 14, 2026</div>
+      <div class="sub-secondary">Then ₹1,499 / year</div>
+      <div class="sub-divider"></div>
+      <button class="cancel-link">Cancel trial</button>
+    </div>
+
+    <div class="bottom">
+      <button class="signout-btn">Sign out</button>
+    </div>
+
+  </div>
+
+  <div class="hi"></div>
+</div>
+<span class="state-label">Active · trial</span>
+</div>
+
+
+<!-- ── Active subscriber (paid) ── -->
+<div class="phone-wrap">
+<div class="phone">
+
+  <div class="sb"><span>9:41</span><span>●●●</span></div>
+
+  <div class="topbar">
+    <button class="back-btn" aria-label="Back">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#7A7060" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 4L6 9L11 14"/>
+      </svg>
+    </button>
+    <span class="screen-title">Account</span>
+  </div>
+
+  <div class="content">
+
+    <div class="profile">
+      <div class="avatar"><span class="avatar-letter">A</span></div>
+      <div class="user-name">Arjun Mehta</div>
+      <div class="user-email">arjun@gmail.com</div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section-label">Subscription</div>
+    <div class="sub-card">
+      <div class="sub-header">
+        <span class="sub-plan">Annual</span>
+        <span class="badge badge-active">Active</span>
+      </div>
+      <div class="sub-primary">₹1,499 / year</div>
+      <div class="sub-secondary">Renews May 9, 2027</div>
+      <div class="sub-divider"></div>
+      <button class="cancel-link">Cancel subscription</button>
+    </div>
+
+    <div class="bottom">
+      <button class="signout-btn">Sign out</button>
+    </div>
+
+  </div>
+
+  <div class="hi"></div>
+</div>
+<span class="state-label">Active · paid</span>
+</div>
+
+
+<!-- ── Lapsed / no plan ── -->
+<div class="phone-wrap">
+<div class="phone">
+
+  <div class="sb"><span>9:41</span><span>●●●</span></div>
+
+  <div class="topbar">
+    <button class="back-btn" aria-label="Back">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#7A7060" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 4L6 9L11 14"/>
+      </svg>
+    </button>
+    <span class="screen-title">Account</span>
+  </div>
+
+  <div class="content">
+
+    <div class="profile">
+      <div class="avatar"><span class="avatar-letter">A</span></div>
+      <div class="user-name">Arjun Mehta</div>
+      <div class="user-email">arjun@gmail.com</div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section-label">Subscription</div>
+    <div class="sub-card">
+      <div class="sub-header">
+        <span class="sub-plan">No active plan</span>
+        <span class="badge badge-lapsed">Lapsed</span>
+      </div>
+      <div class="sub-primary">Your trial ended on May 2, 2026</div>
+      <button class="btn-buy">Buy subscription</button>
+    </div>
+
+    <div class="bottom">
+      <button class="signout-btn">Sign out</button>
+    </div>
+
+  </div>
+
+  <div class="hi"></div>
+</div>
+<span class="state-label">Lapsed</span>
+</div>
+
+
+</body>
+</html>

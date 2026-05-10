@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/figtree@5/400.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/figtree@5/500.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+body{
+  font-family:"Figtree",sans-serif;
+  background:#E8E4DC;
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;padding:32px 16px;
+}
+
+.phone{
+  width:280px;aspect-ratio:9/19.5;border-radius:40px;overflow:hidden;
+  background:#FAFAF8;display:flex;flex-direction:column;
+  position:relative;
+  box-shadow:0 0 0 1.5px rgba(0,0,0,0.1);
+}
+
+/* ── Status bar ── */
+.sb{
+  display:flex;justify-content:space-between;
+  padding:12px 22px 0;
+  font-size:8.5px;font-weight:500;color:#2C241650;flex-shrink:0;
+}
+
+/* ── Top bar ── */
+.topbar{
+  position:relative;
+  display:flex;align-items:center;justify-content:center;
+  padding:10px 22px 12px;
+  flex-shrink:0;
+}
+.back-btn{
+  position:absolute;left:22px;
+  background:none;border:none;cursor:pointer;padding:0;
+  display:flex;align-items:center;gap:4px;
+  transition:opacity 100ms ease-in;
+}
+.back-btn:active{opacity:0.5;}
+.screen-title{
+  font-size:16px;font-weight:500;
+  color:#2C2416;line-height:1;
+}
+
+/* ── Scrollable list ── */
+.list{
+  flex:1;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  padding:0 22px 24px;
+}
+.list::-webkit-scrollbar{display:none;}
+
+/* ── Date group ── */
+.date-group{margin-bottom:18px;}
+.date-group:last-child{margin-bottom:0;}
+
+.date-label{
+  font-size:13px;font-weight:500;
+  color:#A89E8E;line-height:1;
+  margin-bottom:6px;
+}
+
+/* ── Entry card — identical to home screen ── */
+.entry-card{
+  background:#F0EDE6;border-radius:12px;
+  padding:12px 14px;
+  flex-shrink:0;
+  display:flex;align-items:center;gap:12px;
+  margin-bottom:6px;
+  cursor:pointer;
+  transition:background 150ms ease-in;
+}
+.entry-card:last-child{margin-bottom:0;}
+.entry-card:active{background:#E8E4DC;}
+
+.entry-body{flex:1;min-width:0;}
+.entry-time-label{font-size:10px;font-weight:400;color:#A89E8E;line-height:1.4;margin-bottom:6px;}
+.entry-text{
+  font-size:13px;font-weight:400;color:#5C4A3A;line-height:1.6;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.entry-divider{height:0.5px;background:#E8E4DC;margin:6px 0;}
+.entry-duration{font-size:10px;font-weight:400;color:#A89E8E;}
+
+/* Play button — identical to home screen */
+.play-btn{
+  flex-shrink:0;
+  width:30px;height:30px;border-radius:50%;
+  background:#E8E4DC;
+  border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  align-self:center;
+  transition:background 150ms ease-in;
+}
+.play-btn:active{background:#D8D4CC;}
+
+/* ── Home indicator ── */
+.hi{
+  width:56px;height:3px;border-radius:2px;
+  background:#2C2416;opacity:.14;
+  margin:8px auto 14px;flex-shrink:0;
+}
+</style>
+</head>
+<body>
+<div class="phone">
+
+  <div class="sb"><span>9:41</span><span>●●●</span></div>
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <button class="back-btn" onclick="history.back()" aria-label="Back">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#7A7060" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 4L6 9L11 14"/>
+      </svg>
+    </button>
+    <span class="screen-title">Journal</span>
+  </div>
+
+  <!-- Scrollable entry list — only journalled dates shown -->
+  <div class="list">
+
+    <!-- Today, May 9 — 2 entries -->
+    <div class="date-group">
+      <div class="date-label">Today</div>
+
+      <div class="entry-card">
+        <div class="entry-body">
+          <div class="entry-time-label">9:14 AM</div>
+          <div class="entry-text">Today I woke up feeling a quiet kind of grateful. Not the big, loud kind — just a small warmth when I made my tea.</div>
+          <div class="entry-divider"></div>
+          <div class="entry-duration">4 min 12 sec</div>
+        </div>
+        <button class="play-btn" aria-label="Play">
+          <svg width="10" height="12" viewBox="0 0 10 12" fill="#5E9A78"><path d="M0 0L10 6L0 12V0Z"/></svg>
+        </button>
+      </div>
+
+      <div class="entry-card">
+        <div class="entry-body">
+          <div class="entry-time-label">2:38 PM</div>
+          <div class="entry-text">Walked by the park on the way back. Stopped for a moment. Didn't need to — just wanted to. That felt like something.</div>
+          <div class="entry-divider"></div>
+          <div class="entry-duration">1 min 48 sec</div>
+        </div>
+        <button class="play-btn" aria-label="Play">
+          <svg width="10" height="12" viewBox="0 0 10 12" fill="#5E9A78"><path d="M0 0L10 6L0 12V0Z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Wed, May 7 — 1 entry -->
+    <div class="date-group">
+      <div class="date-label">Wed, May 7</div>
+
+      <div class="entry-card">
+        <div class="entry-body">
+          <div class="entry-time-label">8:02 AM</div>
+          <div class="entry-text">Slept well for the first time in a while. Woke up before my alarm. That small thing felt like a win.</div>
+          <div class="entry-divider"></div>
+          <div class="entry-duration">2 min 55 sec</div>
+        </div>
+        <button class="play-btn" aria-label="Play">
+          <svg width="10" height="12" viewBox="0 0 10 12" fill="#5E9A78"><path d="M0 0L10 6L0 12V0Z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Tue, May 6 — 1 entry -->
+    <div class="date-group">
+      <div class="date-label">Tue, May 6</div>
+
+      <div class="entry-card">
+        <div class="entry-body">
+          <div class="entry-time-label">9:47 PM</div>
+          <div class="entry-text">Grateful for the call with Priya. We hadn't spoken properly in months. She remembered something I had completely forgotten about myself.</div>
+          <div class="entry-divider"></div>
+          <div class="entry-duration">5 min 30 sec</div>
+        </div>
+        <button class="play-btn" aria-label="Play">
+          <svg width="10" height="12" viewBox="0 0 10 12" fill="#5E9A78"><path d="M0 0L10 6L0 12V0Z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Sun, May 4 — 1 entry -->
+    <div class="date-group">
+      <div class="date-label">Sun, May 4</div>
+
+      <div class="entry-card">
+        <div class="entry-body">
+          <div class="entry-time-label">10:15 AM</div>
+          <div class="entry-text">Made breakfast slowly. No phone, no podcast. Just the sounds of the kitchen. I'd forgotten how good that feels.</div>
+          <div class="entry-divider"></div>
+          <div class="entry-duration">3 min 12 sec</div>
+        </div>
+        <button class="play-btn" aria-label="Play">
+          <svg width="10" height="12" viewBox="0 0 10 12" fill="#5E9A78"><path d="M0 0L10 6L0 12V0Z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Sat, May 3 — 1 entry -->
+    <div class="date-group">
+      <div class="date-label">Sat, May 3</div>
+
+      <div class="entry-card">
+        <div class="entry-body">
+          <div class="entry-time-label">7:50 AM</div>
+          <div class="entry-text">Early morning. Light came in at an angle I hadn't noticed before. Grateful for the window, honestly.</div>
+          <div class="entry-divider"></div>
+          <div class="entry-duration">2 min 04 sec</div>
+        </div>
+        <button class="play-btn" aria-label="Play">
+          <svg width="10" height="12" viewBox="0 0 10 12" fill="#5E9A78"><path d="M0 0L10 6L0 12V0Z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Apr 25 — 2 entries -->
+    <div class="date-group">
+      <div class="date-label">Fri, Apr 25</div>
+
+      <div class="entry-card">
+        <div class="entry-body">
+          <div class="entry-time-label">8:30 AM</div>
+          <div class="entry-text">Something shifted this week. Can't name it exactly. Just lighter.</div>
+          <div class="entry-divider"></div>
+          <div class="entry-duration">1 min 22 sec</div>
+        </div>
+        <button class="play-btn" aria-label="Play">
+          <svg width="10" height="12" viewBox="0 0 10 12" fill="#5E9A78"><path d="M0 0L10 6L0 12V0Z"/></svg>
+        </button>
+      </div>
+
+      <div class="entry-card">
+        <div class="entry-body">
+          <div class="entry-time-label">9:12 PM</div>
+          <div class="entry-text">End of a long week. Grateful it's done. Grateful for the people who made it bearable.</div>
+          <div class="entry-divider"></div>
+          <div class="entry-duration">2 min 48 sec</div>
+        </div>
+        <button class="play-btn" aria-label="Play">
+          <svg width="10" height="12" viewBox="0 0 10 12" fill="#5E9A78"><path d="M0 0L10 6L0 12V0Z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Apr 21 — 1 entry -->
+    <div class="date-group">
+      <div class="date-label">Mon, Apr 21</div>
+
+      <div class="entry-card">
+        <div class="entry-body">
+          <div class="entry-time-label">7:05 AM</div>
+          <div class="entry-text">First entry. Wasn't sure what to say. Said it anyway. That felt right.</div>
+          <div class="entry-divider"></div>
+          <div class="entry-duration">1 min 10 sec</div>
+        </div>
+        <button class="play-btn" aria-label="Play">
+          <svg width="10" height="12" viewBox="0 0 10 12" fill="#5E9A78"><path d="M0 0L10 6L0 12V0Z"/></svg>
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="hi"></div>
+
+</div>
+</body>
+</html>

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../app/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../shared/widgets/monk_mascot.dart';
 import '../../../shared/widgets/primary_button.dart';
@@ -34,7 +37,7 @@ class HomeScreen extends StatelessWidget {
                   ),
                   PrimaryButton(
                     label: 'Start Session',
-                    onPressed: () {},
+                    onPressed: () => context.go(AppRoutes.session),
                   ),
                   const SizedBox(height: AppSpacing.lg),
                 ],

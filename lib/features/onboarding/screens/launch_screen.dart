@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/app_routes.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/monk_mascot.dart';
 import '../../../shared/widgets/primary_button.dart';
+import '../../../shared/widgets/thankful_app_title.dart';
 
 class LaunchScreen extends StatefulWidget {
   const LaunchScreen({super.key});
@@ -85,12 +87,7 @@ class _LaunchScreenState extends State<LaunchScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SizedBox(height: AppSpacing.screenTop),
-            Text(
-              AppConstants.appName,
-              textAlign: TextAlign.center,
-              style: AppTextStyles.display.copyWith(color: AppColors.primary),
-            ),
+            const ThankfulAppTitle(),
             Expanded(
               child: ClipRect(
                 child: Align(
@@ -192,7 +189,7 @@ class _LaunchScreenState extends State<LaunchScreen>
                   const SizedBox(height: AppSpacing.lg),
                   PrimaryButton(
                     label: 'Get started',
-                    onPressed: () => context.go('/signup'),
+                    onPressed: () => context.go(AppRoutes.signup),
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Center(

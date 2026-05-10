@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/figtree@5/400.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/figtree@5/500.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+body{
+  font-family:"Figtree",sans-serif;
+  background:#E8E4DC;
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;padding:32px 16px;
+}
+
+/* ── Phone — position:relative so monk can anchor to it ── */
+.phone{
+  width:280px;aspect-ratio:9/19.5;border-radius:40px;overflow:hidden;
+  background:#FAFAF8;display:flex;flex-direction:column;
+  position:relative;
+  box-shadow:0 0 0 1.5px rgba(0,0,0,0.1);
+}
+
+/* ── Status bar — mirrors mic screen exactly ── */
+.sb{
+  display:flex;justify-content:space-between;
+  padding:12px 22px 0;
+  font-size:8.5px;font-weight:500;color:#2C241650;flex-shrink:0;
+}
+
+/* ── Top row: app name centred + close button ── */
+.toprow{
+  position:relative;display:flex;align-items:center;justify-content:center;
+  padding:5px 22px 3px;flex-shrink:0;
+}
+.an{font-size:18px;font-weight:500;color:#5E9A78;letter-spacing:.01em;}
+.close-btn{
+  position:absolute;right:18px;
+  background:none;border:none;cursor:pointer;padding:4px;
+  display:flex;align-items:center;justify-content:center;
+  transition:opacity 100ms ease-in;
+}
+.close-btn:active{opacity:0.5;}
+
+/* ── Body ── */
+.body{
+  flex:1;padding:14px 22px 0;
+  display:flex;flex-direction:column;
+  min-height:0;
+}
+
+/* ── Two-tone headline ── */
+.hl1{font-size:22px;font-weight:500;line-height:1.25;color:#2C2416;display:block;}
+.hl2{font-size:22px;font-weight:500;line-height:1.25;color:#5E9A78;display:block;margin-bottom:12px;}
+
+/* ── Subtitle ── */
+.sub{
+  font-size:13px;font-weight:400;color:#7A7060;line-height:1.5;
+  margin-bottom:14px;flex-shrink:0;
+}
+
+/* ── Plan cards ── */
+.plans{display:flex;flex-direction:column;gap:8px;flex-shrink:0;margin-top:18px;}
+
+.plan{
+  background:#F0EDE6;
+  border-radius:16px;          /* radius-lg */
+  padding:12px 14px;
+  display:flex;align-items:center;gap:10px;
+  border:1.5px solid transparent;
+  cursor:pointer;
+  transition:background 150ms ease-in;
+}
+
+.plan.selected{
+  background:#E8E4DC;           /* surface-raised for selected state */
+  border-color:#5E9A78;
+}
+
+.spacer{flex:1;}
+
+/* Radio button */
+.radio{
+  width:18px;height:18px;border-radius:50%;
+  border:1.5px solid #A89E8E;
+  flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+}
+.plan.selected .radio{border-color:#5E9A78;background:#5E9A78;}
+
+.radio-dot{
+  width:7px;height:7px;border-radius:50%;
+  background:#FAFAF8;display:none;
+}
+.plan.selected .radio-dot{display:block;}
+
+/* Plan info */
+.plan-info{flex:1;}
+.plan-badge{
+  display:inline-block;
+  background:#5E9A78;color:#FAFAF8;
+  font-size:9px;font-weight:500;
+  border-radius:100px;padding:1px 6px;
+  vertical-align:middle;margin-left:5px;
+}
+.plan-name{font-size:13px;font-weight:500;color:#7A7060;line-height:1.3;}
+.plan-meta{font-size:11px;font-weight:400;color:#A89E8E;line-height:1.4;}
+
+/* Plan price */
+.plan-price{text-align:right;flex-shrink:0;}
+.plan-amount{font-size:13px;font-weight:500;color:#7A7060;line-height:1.3;}
+.plan.selected .plan-amount{color:#5E9A78;}
+.plan-period{font-size:11px;font-weight:400;color:#A89E8E;line-height:1.4;}
+
+/* ── Ticker — mirrors launch screen ── */
+.sep{height:0.5px;background:#EAE4D8;flex-shrink:0;margin:0 32px;}
+.carousel{flex-shrink:0;cursor:pointer;user-select:none;padding:7px 0 5px;}
+.c-track{display:flex;transition:transform 0.5s cubic-bezier(0.4,0,0.2,1);}
+.c-slide{flex-shrink:0;width:100%;display:flex;align-items:center;justify-content:center;padding:0 24px;}
+.c-word{font-size:12px;font-weight:500;color:#7A7060;letter-spacing:.12em;text-transform:uppercase;text-align:center;}
+.c-dots{display:flex;justify-content:center;gap:5px;padding:4px 0 2px;}
+.dot{width:4px;height:4px;border-radius:50%;background:#D8D2CA;transition:all 0.35s ease;}
+.dot.on{background:#5E9A78;width:14px;border-radius:2px;}
+
+
+
+/* ── CTA area — z-index above monk ── */
+.cta-area{
+  padding:0 22px;flex-shrink:0;
+  position:relative;z-index:2;
+}
+
+/* Primary button — mirrors mic screen */
+.btn-p{
+  width:100%;height:48px;border-radius:100px;border:none;
+  background:#E09050;color:#FAFAF8;
+  font-size:14px;font-weight:500;
+  font-family:"Figtree",sans-serif;
+  cursor:pointer;margin-bottom:8px;display:block;
+  transition:opacity 100ms ease-in;
+}
+.btn-p:active{opacity:.82;}
+
+/* Legal + restore */
+.legal{
+  font-size:11px;font-weight:400;color:#A89E8E;
+  text-align:center;line-height:1.4;padding-bottom:4px;
+}
+
+/* ── Home indicator — z-index above monk ── */
+.hi{
+  width:56px;height:3px;border-radius:2px;
+  background:#2C2416;opacity:.14;
+  margin:10px auto 14px;
+  flex-shrink:0;position:relative;z-index:2;
+}
+
+/* ── Monk meditation — anchored to .phone ── */
+/*
+  Asset: monk_meditation.png
+  Place in same folder as this HTML.
+  ~45% of phone width = 126px.
+  Right + bottom edges cropped per DS placement rules.
+  mix-blend-mode: multiply removes white bg if present.
+  Never overlaps CTA — z-index:1 puts it behind .cta-area (z-index:2).
+  Entry animation: fade + 8px upward drift, 600ms ease-out — DS §9.
+*/
+.monk{
+  position:absolute;
+  bottom:-8px;          /* bottom edge cropped */
+  right:-10px;          /* right edge cropped */
+  width:126px;          /* ~45% of 280px */
+  mix-blend-mode:multiply;
+  pointer-events:none;
+  z-index:1;
+  animation:monkEntry 600ms ease-out both;
+}
+.monk img{width:100%;display:block;}
+
+@keyframes monkEntry{
+  from{opacity:0;transform:translateY(8px);}
+  to  {opacity:1;transform:translateY(0);}
+}
+</style>
+</head>
+<body>
+<div class="phone">
+
+  <!-- Status bar -->
+  <div class="sb"><span>9:41</span><span>●●●</span></div>
+
+  <!-- App name + close -->
+  <div class="toprow">
+    <span class="an">Thankful</span>
+    <button class="close-btn" onclick="window.location='screen8_home.html'" aria-label="Close">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#A89E8E" stroke-width="2" stroke-linecap="round">
+        <line x1="3" y1="3" x2="13" y2="13"/>
+        <line x1="13" y1="3" x2="3" y2="13"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Body -->
+  <div class="body">
+    <span class="hl1">Your first week</span>
+    <span class="hl2">is on us</span>
+
+    <p class="sub">Try everything free for 7 days. No charge until your trial ends.</p>
+
+    <!-- Ticker — matches launch screen carousel exactly -->
+    <div class="sep"></div>
+    <div class="carousel" data-idx="0" onclick="advance(this)">
+      <div class="c-track">
+        <div class="c-slide"><span class="c-word">Gratitude</span></div>
+        <div class="c-slide"><span class="c-word">Meditation</span></div>
+        <div class="c-slide"><span class="c-word">Journalling</span></div>
+      </div>
+      <div class="c-dots">
+        <div class="dot on"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+    </div>
+
+    <!-- Plan cards -->
+    <div class="plans">
+
+      <!-- Monthly -->
+      <div class="plan">
+        <div class="radio"><div class="radio-dot"></div></div>
+        <div class="plan-info">
+          <div class="plan-name">Monthly</div>
+          <div class="plan-meta">Billed every month</div>
+        </div>
+        <div class="plan-price">
+          <div class="plan-amount">₹299</div>
+          <div class="plan-period">/mo</div>
+        </div>
+      </div>
+
+      <!-- Annual — pre-selected -->
+      <div class="plan selected">
+        <div class="radio"><div class="radio-dot"></div></div>
+        <div class="plan-info">
+          <div class="plan-name">Annual <span class="plan-badge">Best value</span></div>
+          <div class="plan-meta">₹1,499/yr · save 58%</div>
+        </div>
+        <div class="plan-price">
+          <div class="plan-amount">₹125</div>
+          <div class="plan-period">/mo</div>
+        </div>
+      </div>
+
+      <!-- Lifetime -->
+      <div class="plan">
+        <div class="radio"><div class="radio-dot"></div></div>
+        <div class="plan-info">
+          <div class="plan-name">Lifetime</div>
+          <div class="plan-meta">One-time, forever</div>
+        </div>
+        <div class="plan-price">
+          <div class="plan-amount">₹3,499</div>
+          <div class="plan-period">once</div>
+        </div>
+      </div>
+
+    </div>
+    <div class="spacer"></div>
+  </div>
+
+  <!-- CTA -->
+  <div class="cta-area">
+    <button class="btn-p">Start 7-day free trial</button>
+    <div class="legal">Cancel anytime &nbsp;·&nbsp; Restore purchase</div>
+  </div>
+
+  <!-- Home indicator -->
+  <div class="hi"></div>
+
+  <!-- Monk meditation pose -->
+  <div class="monk">
+    <img src="monk_meditation.png" alt="" onerror="this.style.display='none'" />
+  </div>
+
+</div>
+<script>
+function advance(el){
+  var track=el.querySelector('.c-track');
+  var dots=el.querySelectorAll('.dot');
+  var idx=(parseInt(el.dataset.idx||0)+1)%3;
+  el.dataset.idx=idx;
+  track.style.transform='translateX(-'+(idx*100)+'%)';
+  dots.forEach(function(d,i){d.classList.toggle('on',i===idx)});
+}
+setInterval(function(){advance(document.querySelector('.carousel'))},3000);
+</script>
+</body>
+</html>

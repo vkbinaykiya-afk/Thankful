@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../app/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../shared/widgets/primary_button.dart';
 
@@ -23,7 +26,10 @@ class PaywallScreen extends StatelessWidget {
                 style: theme.textTheme.bodyMedium,
               ),
               const Spacer(),
-              PrimaryButton(label: 'Start Free Trial', onPressed: () {}),
+              PrimaryButton(
+                label: 'Start Free Trial',
+                onPressed: () => context.go(AppRoutes.home),
+              ),
               const SizedBox(height: AppSpacing.sm),
               Center(
                 child: TextButton(

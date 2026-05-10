@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../app/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../shared/widgets/monk_mascot.dart';
 import '../../../shared/widgets/primary_button.dart';
@@ -28,7 +31,10 @@ class EntryReviewScreen extends StatelessWidget {
                       decoration: const InputDecoration(border: InputBorder.none),
                     ),
                   ),
-                  PrimaryButton(label: 'Save Entry', onPressed: () {}),
+                  PrimaryButton(
+                    label: 'Save Entry',
+                    onPressed: () => context.go(AppRoutes.home),
+                  ),
                   const SizedBox(height: AppSpacing.lg),
                 ],
               ),

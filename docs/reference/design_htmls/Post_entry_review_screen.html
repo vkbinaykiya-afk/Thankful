@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thankful — Screen 6 · Entry review</title>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500&display=swap" rel="stylesheet">
+<style>
+
+  /* ── Tokens ────────────────────────────────────────── */
+  :root {
+    --bg:           #FAFAF8;
+    --surface:      #F0EDE6;
+    --surface-r:    #E8E4DC;
+    --primary:      #5E9A78;
+    --cta:          #E09050;
+    --text-primary: #2C2416;
+    --text-journal: #5C4A3A;
+    --text-sec:     #7A7060;
+    --text-ter:     #A89E8E;
+
+    --space-xs:  6px;
+    --space-sm:  12px;
+    --space-md:  18px;
+    --space-lg:  24px;
+    --space-xl:  36px;
+    --space-2xl: 48px;
+    --screen-h:  22px;
+    --screen-t:  12px;
+    --screen-b:  24px;
+
+    --r-sm:   8px;
+    --r-md:   12px;
+    --r-lg:   16px;
+    --r-xl:   24px;
+    --r-full: 100px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Figtree', sans-serif;
+    background: var(--surface-r);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+  }
+
+  /* ── Phone shell ───────────────────────────────────── */
+  .phone {
+    width: 280px;
+    aspect-ratio: 9 / 19.5;
+    background: var(--bg);
+    border-radius: 40px;
+    overflow: hidden;
+    position: relative;
+    outline: 1.5px solid rgba(44,36,22,0.1);
+  }
+
+  /* ── Screen ────────────────────────────────────────── */
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 0 var(--screen-h);
+  }
+
+  /* ── Headline ──────────────────────────────────────── */
+  .headline {
+    padding-top: 48px;
+    flex-shrink: 0;
+  }
+
+  .line1 {
+    font-size: 22px;
+    font-weight: 500;
+    line-height: 1.25;
+    color: var(--text-primary);
+  }
+
+  .line2 {
+    font-size: 22px;
+    font-weight: 500;
+    line-height: 1.25;
+    color: var(--primary);
+  }
+
+  /* ── Meta ──────────────────────────────────────────── */
+  .meta {
+    margin-top: var(--space-xs);
+    flex-shrink: 0;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.5;
+    color: var(--text-sec);
+  }
+
+  /* ── Transcript card ───────────────────────────────── */
+  .card {
+    margin-top: var(--space-md);
+    background: var(--surface);
+    border-radius: var(--r-lg);
+    padding: 16px;
+    height: 204px;
+    overflow-y: auto;
+    flex-shrink: 0;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .card::-webkit-scrollbar { display: none; }
+
+  .card p {
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 1.7;
+    color: var(--text-journal);
+  }
+
+  .card p + p { margin-top: var(--space-sm); }
+
+  /* ── Spacer ────────────────────────────────────────── */
+  .spacer { flex: 1; }
+
+  /* ── CTA area ──────────────────────────────────────── */
+  .cta-area {
+    flex-shrink: 0;
+    padding-bottom: var(--screen-b);
+    position: relative;
+    z-index: 2;
+  }
+
+  .btn-primary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 52px;
+    background: var(--cta);
+    border-radius: var(--r-full);
+    color: var(--bg);
+    font-family: 'Figtree', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: opacity 100ms ease-in;
+  }
+
+  .btn-primary:active { opacity: 0.82; }
+
+  .btn-secondary {
+    display: block;
+    width: 100%;
+    height: 48px;
+    margin-top: var(--space-sm);
+    border-radius: var(--r-full);
+    border: 1.5px solid var(--primary);
+    background: transparent;
+    color: var(--primary);
+    font-family: 'Figtree', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 150ms ease-in;
+  }
+
+  .btn-secondary:active { background: var(--surface); }
+
+  /* ── Monk ──────────────────────────────────────────── */
+  .monk {
+    position: absolute;
+    bottom: 72px;
+    right: -18px;
+    width: 144px;
+    pointer-events: none;
+    mix-blend-mode: multiply;
+    z-index: 1;
+    animation: monkEntry 600ms ease-out both;
+  }
+
+  .monk img { width: 100%; display: block; }
+
+  @keyframes monkEntry {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0);   }
+  }
+
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="screen">
+
+    <div class="headline">
+      <div class="line1">Your entry</div>
+      <div class="line2">is ready</div>
+    </div>
+
+    <div class="meta">May 9, 2026 &nbsp;·&nbsp; 4 min 12 sec</div>
+
+    <div class="card">
+      <p>Today I woke up feeling a quiet kind of grateful. Not the big, loud kind — just a small warmth when I made my tea and the light came through the window just right.</p>
+      <p>I've been thinking about the conversation I had with my mother last week. She mentioned that she was proud of me, and I didn't quite know how to hold that. I still don't, really. But I'm trying to let it in instead of deflecting.</p>
+      <p>The AI asked me what I was most looking forward to today. I said nothing in particular — and then I realised that wasn't true. I'm looking forward to the quiet walk I've been putting off.</p>
+      <p>Small things. That's where it lives, I think.</p>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="cta-area">
+      <button class="btn-primary">Save entry</button>
+      <button class="btn-secondary" onclick="location.reload()">Start over</button>
+    </div>
+
+    <div class="monk">
+      <img src="monk_writing.png" alt="" onerror="this.style.display='none'" />
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

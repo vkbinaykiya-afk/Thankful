@@ -8,6 +8,12 @@ class AppColors {
   static const Color surface = Color(0xFFF0EDE6);
   static const Color surfaceRaised = Color(0xFFE8E4DC);
 
+  /// Sign-up OAuth row buttons (mockup — not apricot CTA fill).
+  static const Color oauthButtonFill = Color(0xFFF2F0EB);
+
+  /// Google “G” badge circle (brand red).
+  static const Color googleBrandCircle = Color(0xFFEA4335);
+
   // Brand
   static const Color primary = Color(0xFF5E9A78);
   static const Color cta = Color(0xFFE09050);

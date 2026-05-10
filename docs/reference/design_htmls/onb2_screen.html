@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/figtree@5/400.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/figtree@5/500.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Figtree",sans-serif;background:#e8e4dc;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:32px 16px}
+.phone{width:280px;aspect-ratio:9/19.5;border-radius:40px;overflow:hidden;background:#FAFAF8;display:flex;flex-direction:column;box-shadow:0 0 0 1.5px rgba(0,0,0,0.1),0 16px 48px rgba(0,0,0,0.12)}
+.sb{display:flex;justify-content:space-between;padding:12px 22px 0;font-size:8.5px;font-weight:500;color:#2C241650;flex-shrink:0}
+.an{font-size:18px;font-weight:500;color:#5E9A78;text-align:center;padding:5px 0 3px;flex-shrink:0;letter-spacing:.01em}
+.dots{display:flex;gap:4px;padding:6px 22px 0;flex-shrink:0}
+.dot{width:4px;height:4px;border-radius:50%;background:#D8D2CA}
+.dot.on{background:#5E9A78;width:14px;border-radius:2px}
+.body{flex:1;padding:14px 22px 0;display:flex;flex-direction:column}
+.mic-icon{width:52px;height:52px;background:#F0EDE6;border-radius:16px;display:flex;align-items:center;justify-content:center;margin-bottom:14px;flex-shrink:0}
+/* text-heading-1: 22px w500 lh1.25 — two-tone onboarding pattern */
+.hl1{font-size:22px;font-weight:500;line-height:1.25;color:#2C2416;display:block}
+.hl2{font-size:22px;font-weight:500;line-height:1.25;color:#5E9A78;display:block;margin-bottom:14px}
+/* text-body: 15px w400 lh1.6 */
+.mic-body{font-size:13px;font-weight:400;color:#7A7060;line-height:1.5;margin-bottom:14px;flex-shrink:0}
+/* note uses text-caption: 13px w400 lh1.5 */
+.note{display:flex;gap:8px;background:#F0EDE6;border-radius:10px;padding:10px 12px;align-items:flex-start;flex-shrink:0}
+.note-txt{font-size:13px;font-weight:400;color:#7A7060;line-height:1.5}
+.spacer{flex:1}
+.cta-area{padding:0 22px;flex-shrink:0}
+/* Primary button: 48px, text 14px w500 — matches launch screen */
+.btn-p{width:100%;height:48px;border-radius:100px;border:none;background:#E09050;color:#FAFAF8;font-size:14px;font-weight:500;font-family:"Figtree",sans-serif;cursor:pointer;margin-bottom:8px;display:block}
+/* Secondary button: 48px, border 1.5px primary */
+.btn-s{width:100%;height:48px;border-radius:100px;border:1.5px solid #5E9A78;background:transparent;color:#5E9A78;font-size:14px;font-weight:500;font-family:"Figtree",sans-serif;cursor:pointer;display:block}
+.hi{width:56px;height:3px;border-radius:2px;background:#2C2416;opacity:.14;margin:10px auto 14px}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="sb"><span>9:41</span><span>●●●</span></div>
+  <div class="an">Thankful</div>
+  <div class="dots">
+    <div class="dot"></div>
+    <div class="dot"></div>
+    <div class="dot on"></div>
+  </div>
+  <div class="body">
+    <div class="mic-icon">
+      <svg width="26" height="32" viewBox="0 0 26 32" fill="none">
+        <rect x="8" y="1" width="10" height="16" rx="5" fill="#5E9A78"/>
+        <path d="M3 15C3 20.5 7.5 25 13 25C18.5 25 23 20.5 23 15" stroke="#5E9A78" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+        <line x1="13" y1="25" x2="13" y2="31" stroke="#5E9A78" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="8" y1="31" x2="18" y2="31" stroke="#5E9A78" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="hl1">One thing before</span>
+    <span class="hl2">we begin</span>
+    <p class="mic-body">Thankful is a voice journal. To hear you, we need access to your microphone.</p>
+    <div class="note">
+      <div style="flex-shrink:0;margin-top:1px">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <circle cx="7" cy="7" r="6" stroke="#5E9A78" stroke-width="1.3"/>
+          <path d="M7 6V10" stroke="#5E9A78" stroke-width="1.3" stroke-linecap="round"/>
+          <circle cx="7" cy="4.5" r=".6" fill="#5E9A78"/>
+        </svg>
+      </div>
+      <span class="note-txt">We only record during sessions — never in the background.</span>
+    </div>
+    <div class="spacer"></div>
+  </div>
+  <div class="cta-area">
+    <button class="btn-p">Allow microphone</button>
+    <button class="btn-s">Not right now</button>
+  </div>
+  <div class="hi"></div>
+</div>
+</body>
+</html>

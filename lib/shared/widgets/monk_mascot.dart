@@ -8,10 +8,15 @@ class MonkMascot extends StatelessWidget {
   final MonkState state;
   final double width;
 
+  /// Knocks out harsh white in raster edges by multiplying with [AppColors.background]
+  /// (same intent as `mix-blend-mode: multiply` in reference HTML).
+  final bool multiplyWithBackground;
+
   const MonkMascot({
     super.key,
     required this.state,
     this.width = 180,
+    this.multiplyWithBackground = false,
   });
 
   String get _assetPath {
@@ -19,9 +24,9 @@ class MonkMascot extends StatelessWidget {
       case MonkState.namaste:
         return 'assets/mascot/monk_namaste.png';
       case MonkState.meditation:
-        return 'assets/mascot/monk_meditation.png';
+        return 'assets/mascot/Meditating_Monk.png';
       case MonkState.writing:
-        return 'assets/mascot/monk_writing.png';
+        return 'assets/mascot/Writing_monk.png';
       case MonkState.milestone:
         return 'assets/mascot/monk_milestone.png';
       case MonkState.bowed:
@@ -31,17 +36,21 @@ class MonkMascot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Image.asset(
+    final image = Image.asset(
       _assetPath,
       width: width,
       fit: BoxFit.contain,
       filterQuality: FilterQuality.medium,
       gaplessPlayback: true,
+      color: multiplyWithBackground ? AppColors.background : null,
+      colorBlendMode:
+          multiplyWithBackground ? BlendMode.multiply : null,
       errorBuilder: (_, _, _) => SizedBox(
         width: width,
         height: width,
         child: ColoredBox(color: AppColors.surfaceRaised),
       ),
     );
+    return image;
   }
 }
