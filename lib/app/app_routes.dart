@@ -5,6 +5,9 @@ abstract final class AppRoutes {
   static const launch = '/launch';
   static const signup = '/signup';
   static const onboardingOnb1 = '/onboarding/onb1';
+  static const onboardingOnb2 = '/onboarding/onb2';
+  static const onboardingOnb3 = '/onboarding/onb3';
+  static const onboardingConvo = '/onboarding/convo';
   static const demo = '/demo';
   static const paywall = '/paywall';
   static const home = '/home';

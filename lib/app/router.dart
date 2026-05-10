@@ -5,6 +5,9 @@ import '../features/auth/screens/signup_screen.dart';
 import '../features/onboarding/screens/demo_session_screen.dart';
 import '../features/onboarding/screens/launch_screen.dart';
 import '../features/onboarding/screens/onb1_screen.dart';
+import '../features/onboarding/screens/onb2_screen.dart';
+import '../features/onboarding/screens/onb3_screen.dart';
+import '../features/onboarding/screens/onboarding_convo_screen.dart';
 import '../features/paywall/screens/paywall_screen.dart';
 import '../features/home/screens/home_screen.dart';
 import '../features/session/screens/voice_session_screen.dart';
@@ -18,6 +21,18 @@ final appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.onboardingOnb1,
       builder: (_, _) => const Onb1Screen(),
+    ),
+    GoRoute(
+      path: AppRoutes.onboardingOnb2,
+      builder: (_, _) => const Onb2Screen(),
+    ),
+    GoRoute(
+      path: AppRoutes.onboardingOnb3,
+      builder: (_, _) => const Onb3Screen(),
+    ),
+    GoRoute(
+      path: AppRoutes.onboardingConvo,
+      builder: (_, _) => const OnboardingConvoScreen(),
     ),
     GoRoute(path: AppRoutes.demo, builder: (_, _) => const DemoSessionScreen()),
     GoRoute(path: AppRoutes.paywall, builder: (_, _) => const PaywallScreen()),

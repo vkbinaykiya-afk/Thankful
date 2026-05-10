@@ -8,6 +8,11 @@ class MonkMascot extends StatelessWidget {
   final MonkState state;
   final double width;
 
+  /// When set, image scales to this height (`BoxFit.fitHeight`, width from aspect
+  /// ratio) — matches HTML `height:100%;width:auto` in flex monk areas.
+  /// Ignores [width] for layout.
+  final double? layoutHeight;
+
   /// Knocks out harsh white in raster edges by multiplying with [AppColors.background]
   /// (same intent as `mix-blend-mode: multiply` in reference HTML).
   final bool multiplyWithBackground;
@@ -16,6 +21,7 @@ class MonkMascot extends StatelessWidget {
     super.key,
     required this.state,
     this.width = 180,
+    this.layoutHeight,
     this.multiplyWithBackground = false,
   });
 
@@ -36,21 +42,48 @@ class MonkMascot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final image = Image.asset(
+    final color = multiplyWithBackground ? AppColors.background : null;
+    final blend =
+        multiplyWithBackground ? BlendMode.multiply : null;
+
+    if (layoutHeight != null) {
+      final h = layoutHeight!;
+      final image = Image.asset(
+        _assetPath,
+        height: h,
+        fit: BoxFit.fitHeight,
+        alignment: Alignment.bottomCenter,
+        filterQuality: FilterQuality.medium,
+        gaplessPlayback: true,
+        color: color,
+        colorBlendMode: blend,
+        errorBuilder: (_, _, _) => SizedBox(
+          height: h,
+          width: h,
+          child: ColoredBox(color: AppColors.surfaceRaised),
+        ),
+      );
+      return ClipRect(
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: image,
+        ),
+      );
+    }
+
+    return Image.asset(
       _assetPath,
       width: width,
       fit: BoxFit.contain,
       filterQuality: FilterQuality.medium,
       gaplessPlayback: true,
-      color: multiplyWithBackground ? AppColors.background : null,
-      colorBlendMode:
-          multiplyWithBackground ? BlendMode.multiply : null,
+      color: color,
+      colorBlendMode: blend,
       errorBuilder: (_, _, _) => SizedBox(
         width: width,
         height: width,
         child: ColoredBox(color: AppColors.surfaceRaised),
       ),
     );
-    return image;
   }
 }

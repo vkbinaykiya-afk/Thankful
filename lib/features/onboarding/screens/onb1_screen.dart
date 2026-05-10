@@ -200,7 +200,7 @@ class _Onb1ScreenState extends State<Onb1Screen>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   GestureDetector(
-                    onTap: () => context.go(AppRoutes.demo),
+                    onTap: () => context.go(AppRoutes.onboardingOnb2),
                     child: Container(
                       height: 48,
                       alignment: Alignment.center,
