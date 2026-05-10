@@ -1,18 +1,17 @@
 class AppConstants {
   AppConstants._();
 
-  // Spacing
-  static const double xs = 6.0;
-  static const double sm = 12.0;
-  static const double md = 18.0;
-  static const double lg = 24.0;
-  static const double xl = 48.0;
+  static const String appName = 'Thankful';
 
-  // Border radius
-  static const double radiusCard = 16.0;
-  static const double radiusButton = 100.0;
-  static const double radiusSmall = 8.0;
+  /// Splash monk entry — matches docs/reference/launch_screen.html & design system §9.
+  static const Duration mascotEntryDuration = Duration(milliseconds: 600);
+  static const double mascotEntryDriftPx = 8;
+  static const double launchMonkWidthFraction = 0.92;
 
-  // Animation
-  static const Duration fadeInDuration = Duration(milliseconds: 600);
+  static const Duration fadeInDuration = mascotEntryDuration;
+  static const Duration screenEntry = Duration(milliseconds: 280);
+  static const Duration buttonPress = Duration(milliseconds: 100);
+  static const Duration cardPress = Duration(milliseconds: 150);
+  static const Duration waveformBar = Duration(milliseconds: 120);
+  static const Duration streakPulse = Duration(milliseconds: 2000);
 }

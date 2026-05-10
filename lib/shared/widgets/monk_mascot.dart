@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_colors.dart';
+
 enum MonkState { namaste, meditation, writing, milestone, bowed }
 
 class MonkMascot extends StatelessWidget {
@@ -33,10 +35,12 @@ class MonkMascot extends StatelessWidget {
       _assetPath,
       width: width,
       fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => SizedBox(
+      filterQuality: FilterQuality.medium,
+      gaplessPlayback: true,
+      errorBuilder: (_, _, _) => SizedBox(
         width: width,
         height: width,
-        child: const ColoredBox(color: Color(0xFFEAE4D9)),
+        child: ColoredBox(color: AppColors.surfaceRaised),
       ),
     );
   }

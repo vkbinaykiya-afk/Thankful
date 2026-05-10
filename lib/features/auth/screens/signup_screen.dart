@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/theme/app_spacing.dart';
 import '../../../shared/widgets/monk_mascot.dart';
 import '../../../shared/widgets/primary_button.dart';
 
@@ -45,16 +46,16 @@ class _SignupScreenState extends State<SignupScreen>
           child: Stack(
             children: [
               Padding(
-                padding: const EdgeInsets.all(AppConstants.lg),
+                padding: const EdgeInsets.all(AppSpacing.lg),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: AppConstants.xl),
+                    const SizedBox(height: AppSpacing.xxl),
                     Text(
                       'Your daily\ngratitude ritual.',
                       style: theme.textTheme.displayLarge,
                     ),
-                    const SizedBox(height: AppConstants.sm),
+                    const SizedBox(height: AppSpacing.sm),
                     Text(
                       'Speak. Listen. Grow.',
                       style: theme.textTheme.bodyMedium,
@@ -64,17 +65,17 @@ class _SignupScreenState extends State<SignupScreen>
                       label: 'Continue with Apple',
                       onPressed: () {},
                     ),
-                    const SizedBox(height: AppConstants.sm),
+                    const SizedBox(height: AppSpacing.sm),
                     PrimaryButton(
                       label: 'Continue with Google',
                       onPressed: () {},
                     ),
-                    const SizedBox(height: AppConstants.sm),
+                    const SizedBox(height: AppSpacing.sm),
                     PrimaryButton(
                       label: 'Continue with Email',
                       onPressed: () {},
                     ),
-                    const SizedBox(height: AppConstants.lg),
+                    const SizedBox(height: AppSpacing.lg),
                   ],
                 ),
               ),

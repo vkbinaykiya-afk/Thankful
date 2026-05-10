@@ -9,25 +9,15 @@ class AuthController extends ChangeNotifier {
   String? get error => _error;
 
   Future<void> signInWithApple() async {
+    // TODO: wire to Supabase OAuth + sign_in_with_apple package
     _setLoading(true);
-    try {
-      await SupabaseService.client.auth.signInWithOAuth(OAuthProvider.apple);
-    } catch (e) {
-      _error = e.toString();
-    } finally {
-      _setLoading(false);
-    }
+    _setLoading(false);
   }
 
   Future<void> signInWithGoogle() async {
+    // TODO: wire to Supabase OAuth + google_sign_in package
     _setLoading(true);
-    try {
-      await SupabaseService.client.auth.signInWithOAuth(OAuthProvider.google);
-    } catch (e) {
-      _error = e.toString();
-    } finally {
-      _setLoading(false);
-    }
+    _setLoading(false);
   }
 
   Future<void> signOut() async {

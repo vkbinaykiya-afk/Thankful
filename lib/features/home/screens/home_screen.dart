@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_constants.dart';
+import '../../../core/theme/app_spacing.dart';
 import '../../../shared/widgets/monk_mascot.dart';
 import '../../../shared/widgets/primary_button.dart';
 
@@ -14,16 +14,16 @@ class HomeScreen extends StatelessWidget {
         child: Stack(
           children: [
             Padding(
-              padding: const EdgeInsets.all(AppConstants.lg),
+              padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Good morning', style: theme.textTheme.displayMedium),
-                  const SizedBox(height: AppConstants.xs),
+                  const SizedBox(height: AppSpacing.xs),
                   Text('Day streak: 0', style: theme.textTheme.bodySmall),
-                  const SizedBox(height: AppConstants.xl),
+                  const SizedBox(height: AppSpacing.xxl),
                   Text('Past entries', style: theme.textTheme.displaySmall),
-                  const SizedBox(height: AppConstants.md),
+                  const SizedBox(height: AppSpacing.md),
                   Expanded(
                     child: Center(
                       child: Text(
@@ -36,7 +36,7 @@ class HomeScreen extends StatelessWidget {
                     label: 'Start Session',
                     onPressed: () {},
                   ),
-                  const SizedBox(height: AppConstants.lg),
+                  const SizedBox(height: AppSpacing.lg),
                 ],
               ),
             ),

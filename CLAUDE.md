@@ -16,18 +16,36 @@ is auto-generated from the conversation.
 - Crash reporting: Sentry
 - Marketing site: Framer
 
-## Design system
-- Background: #F4F1EC
-- Surface: #EAE4D9
-- Primary/Nav: #4A7C5F (sage)
-- CTA: #4A7C5F (sage)
-- Text primary: #2C2416
-- Text secondary: #7A7060
-- Mascot accent: #6B2D2D (maroon robes)
-- Saffron accent: #E8940A (glasses frames)
-- Font: Plus Jakarta Sans
-- Border radius: 16px cards, 100px buttons
-- Spacing unit: 6px base
+## Design system — LOCKED v2.0
+Palette: Warm White
+Font: Figtree via `google_fonts` (weights w400 and w500 only — NEVER w600 or w700)
+
+Background:     #FAFAF8   0xFFFAFAF8
+Surface:        #F0EDE6   0xFFF0EDE6
+Surface raised: #E8E4DC   0xFFE8E4DC
+Primary:        #5E9A78   0xFF5E9A78
+CTA:            #E09050   0xFFE09050
+Accent violet:  #7B6FA8   0xFF7B6FA8
+Streak:         #E09050   0xFFE09050
+Text primary:   #2C2416   0xFF2C2416
+Text journal:   #5C4A3A   0xFF5C4A3A
+Text secondary: #7A7060   0xFF7A7060
+Text tertiary:  #A89E8E   0xFFA89E8E
+Error:          #C0392B   0xFFC0392B
+Monk maroon:    #6B2D2D   0xFF6B2D2D   (mascot art only — never UI)
+Monk glasses:   #E8940A   0xFFE8940A   (mascot art only — never UI)
+
+Border radius: 8 / 12 / 16 / 24 / 100 (full pill for all buttons)
+Spacing unit: 6px base — xs 6, sm 12, md 18, lg 24, xl 36, xxl 48
+Screen padding: 22px horizontal, 12px below status bar, 24px above home indicator
+
+FORBIDDEN: gradients, drop shadows, pure white, pure black,
+           font weights other than 400/500, all caps text,
+           italic/underline outside legal hyperlinks,
+           monk colours on UI elements, more than 3 colours per screen,
+           CTA apricot and accent violet on the same screen.
+
+Full spec: thankful_design_system_v2.md (status: LOCKED)
 
 ## Mascot
 Young monk, round gold glasses, maroon robes, eyes always

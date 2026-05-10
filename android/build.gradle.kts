@@ -1,3 +1,6 @@
+import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 allprojects {
     repositories {
         google()
@@ -17,6 +20,17 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+}
+
+// Plugins such as posthog_flutter may pin Kotlin language version 1.6; Kotlin 2.2+ no longer
+// compiles that. Force a supported language/api version for all modules.
+subprojects {
+    tasks.withType<KotlinCompile>().configureEach {
+        compilerOptions {
+            languageVersion.set(KotlinVersion.KOTLIN_2_0)
+            apiVersion.set(KotlinVersion.KOTLIN_2_0)
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {

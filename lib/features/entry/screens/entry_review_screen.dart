@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_constants.dart';
+import '../../../core/theme/app_spacing.dart';
 import '../../../shared/widgets/monk_mascot.dart';
 import '../../../shared/widgets/primary_button.dart';
 
@@ -14,12 +14,12 @@ class EntryReviewScreen extends StatelessWidget {
         child: Stack(
           children: [
             Padding(
-              padding: const EdgeInsets.all(AppConstants.lg),
+              padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text("Today's entry", style: theme.textTheme.displayMedium),
-                  const SizedBox(height: AppConstants.md),
+                  const SizedBox(height: AppSpacing.md),
                   Expanded(
                     child: TextField(
                       maxLines: null,
@@ -29,7 +29,7 @@ class EntryReviewScreen extends StatelessWidget {
                     ),
                   ),
                   PrimaryButton(label: 'Save Entry', onPressed: () {}),
-                  const SizedBox(height: AppConstants.lg),
+                  const SizedBox(height: AppSpacing.lg),
                 ],
               ),
             ),

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_constants.dart';
+import '../../../core/theme/app_spacing.dart';
 import '../../../shared/widgets/monk_mascot.dart';
 
 class DemoSessionScreen extends StatelessWidget {
@@ -13,7 +13,7 @@ class DemoSessionScreen extends StatelessWidget {
           children: [
             Center(
               child: Padding(
-                padding: const EdgeInsets.all(AppConstants.lg),
+                padding: const EdgeInsets.all(AppSpacing.lg),
                 child: Text(
                   'Demo session — coming soon',
                   style: Theme.of(context).textTheme.displaySmall,
