@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../core/constants/app_constants.dart';
@@ -11,6 +12,8 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/monk_mascot.dart';
 import '../../../shared/widgets/oauth_continue_button.dart';
 import '../../../shared/widgets/thankful_app_title.dart';
+import '../controllers/auth_controller.dart';
+import '../google_auth_helpers.dart';
 
 /// Same chrome as [SignupScreen] (title, monk, hairline, ticker) — login headline/footer.
 class LoginScreen extends StatefulWidget {
@@ -193,9 +196,19 @@ class _LoginScreenState extends State<LoginScreen>
                     onPressed: () => context.go(AppRoutes.home),
                   ),
                   const SizedBox(height: AppSpacing.sm),
-                  OAuthContinueButton(
-                    kind: OAuthContinueKind.google,
-                    onPressed: () => context.go(AppRoutes.home),
+                  Consumer<AuthController>(
+                    builder: (context, auth, _) {
+                      return OAuthContinueButton(
+                        kind: OAuthContinueKind.google,
+                        onPressed: auth.isLoading
+                            ? null
+                            : () => completeGoogleSignIn(
+                                  context,
+                                  onSignedIn: () =>
+                                      context.go(AppRoutes.home),
+                                ),
+                      );
+                    },
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   Center(

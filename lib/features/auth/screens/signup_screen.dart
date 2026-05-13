@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../core/constants/app_constants.dart';
@@ -11,6 +12,8 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/monk_mascot.dart';
 import '../../../shared/widgets/oauth_continue_button.dart';
 import '../../../shared/widgets/thankful_app_title.dart';
+import '../controllers/auth_controller.dart';
+import '../google_auth_helpers.dart';
 
 /// Matches [LaunchScreen] chrome (app name, centered monk, 80% hairline, ticker)
 /// with auth CTAs and footer per signup HTML.
@@ -195,35 +198,53 @@ class _SignupScreenState extends State<SignupScreen>
                         context.go(AppRoutes.onboardingOnb1),
                   ),
                   const SizedBox(height: AppSpacing.sm),
-                  OAuthContinueButton(
-                    kind: OAuthContinueKind.google,
-                    onPressed: () =>
-                        context.go(AppRoutes.onboardingOnb1),
+                  Consumer<AuthController>(
+                    builder: (context, auth, _) {
+                      return OAuthContinueButton(
+                        kind: OAuthContinueKind.google,
+                        onPressed: auth.isLoading
+                            ? null
+                            : () => completeGoogleSignIn(
+                                  context,
+                                  onSignedIn: () => context.go(
+                                    AppRoutes.onboardingOnb1,
+                                  ),
+                                ),
+                      );
+                    },
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   Center(
-                    child: Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      alignment: WrapAlignment.center,
-                      spacing: 0,
-                      children: [
-                        Text(
-                          'Already have an account? ',
-                          style: AppTextStyles.caption.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () =>
+                          GoRouter.of(context).push(AppRoutes.login),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 10,
+                          horizontal: 8,
                         ),
-                        GestureDetector(
-                          onTap: () => context.go(AppRoutes.login),
-                          child: Text(
-                            'Sign in',
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w500,
+                        child: Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          alignment: WrapAlignment.center,
+                          spacing: 0,
+                          children: [
+                            Text(
+                              'Already have an account? ',
+                              style: AppTextStyles.caption.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
                             ),
-                          ),
+                            Text(
+                              'Sign in',
+                              style: AppTextStyles.caption.copyWith(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ],
