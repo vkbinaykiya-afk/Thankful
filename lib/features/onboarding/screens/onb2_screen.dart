@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:record/record.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../core/theme/app_colors.dart';
@@ -12,6 +14,82 @@ import '../../../shared/widgets/thankful_app_title.dart';
 /// Microphone permission — matches `docs/reference/design_htmls/onb2_screen.html`.
 class Onb2Screen extends StatelessWidget {
   const Onb2Screen({super.key});
+
+  static const String _micRequiredMessage =
+      'Microphone access is required to record journal entries. '
+      'Please enable it in Settings.';
+
+  void _goOnb3(BuildContext context) {
+    if (context.mounted) {
+      context.go(AppRoutes.onboardingOnb3);
+    }
+  }
+
+  Future<void> _showMicRequiredDialog(BuildContext context) async {
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          content: const Text(_micRequiredMessage),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                openAppSettings();
+              },
+              child: const Text('Open Settings'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _onAllowMicrophone(BuildContext context) async {
+    var status = await Permission.microphone.status;
+    if (!context.mounted) return;
+
+    if (status.isGranted) {
+      _goOnb3(context);
+      return;
+    }
+
+    if (status.isRestricted || status.isPermanentlyDenied) {
+      await _showMicRequiredDialog(context);
+      return;
+    }
+
+    // Not determined (often reported as `denied` before first prompt) or
+    // previously denied without a permanent flag — system sheet when eligible.
+    final recorder = AudioRecorder();
+    try {
+      final granted = await recorder.hasPermission(request: true);
+      if (!context.mounted) return;
+      if (granted) {
+        _goOnb3(context);
+        return;
+      }
+    } finally {
+      await recorder.dispose();
+    }
+
+    if (!context.mounted) return;
+    status = await Permission.microphone.status;
+    if (!context.mounted) return;
+
+    if (status.isGranted) {
+      _goOnb3(context);
+      return;
+    }
+
+    if (!context.mounted) return;
+    await _showMicRequiredDialog(context);
+  }
 
   static const int totalSteps = 6;
   static const int currentStep = 3;
@@ -151,7 +229,7 @@ class Onb2Screen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   GestureDetector(
-                    onTap: () => context.go(AppRoutes.onboardingOnb3),
+                    onTap: () => _onAllowMicrophone(context),
                     child: Container(
                       height: 48,
                       alignment: Alignment.center,

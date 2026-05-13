@@ -39,5 +39,20 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+    target.build_configurations.each do |config|
+      # permission_handler_apple: enable only permissions the app uses (see
+      # https://github.com/Baseflow/flutter-permission-handler/blob/main/permission_handler_apple/ios/Classes/PermissionHandlerEnums.h).
+      defs = config.build_settings['GCC_PREPROCESSOR_DEFINITIONS']
+      mic = 'PERMISSION_MICROPHONE=1'
+      if defs.nil?
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] = ['$(inherited)', mic]
+      elsif defs.is_a?(Array)
+        unless defs.any? { |d| d.to_s.include?('PERMISSION_MICROPHONE') }
+          config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] = defs + [mic]
+        end
+      else
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] = [defs, mic]
+      end
+    end
   end
 end

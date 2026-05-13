@@ -23,7 +23,11 @@ class AuthController extends ChangeNotifier {
   Future<bool> signInWithGoogle() async {
     _error = null;
     if (!SupabaseService.isInitialized) {
-      _error = 'Supabase is not configured.';
+      _error =
+          'Supabase is not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY '
+          'to .env (see pubspec assets), or run with '
+          '--dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=..., '
+          'then fully restart the app.';
       notifyListeners();
       return false;
     }

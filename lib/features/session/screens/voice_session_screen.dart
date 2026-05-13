@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:record/record.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -10,6 +11,18 @@ import '../../../shared/widgets/secondary_button.dart';
 /// Placeholder voice session — wire to Deepgram / TTS / LLM later.
 class VoiceSessionScreen extends StatelessWidget {
   const VoiceSessionScreen({super.key});
+
+  Future<void> _onRecordTap() async {
+    final recorder = AudioRecorder();
+    try {
+      final granted = await recorder.hasPermission(request: false);
+      if (!granted) {
+        await recorder.hasPermission(request: true);
+      }
+    } finally {
+      await recorder.dispose();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +45,11 @@ class VoiceSessionScreen extends StatelessWidget {
                       ),
                     ),
                   ),
+                  PrimaryButton(
+                    label: 'Record',
+                    onPressed: _onRecordTap,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
                   PrimaryButton(
                     label: 'Finish session',
                     onPressed: () =>
