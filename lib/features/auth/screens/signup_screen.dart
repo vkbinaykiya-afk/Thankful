@@ -194,7 +194,8 @@ class _SignupScreenState extends State<SignupScreen>
                   const SizedBox(height: AppSpacing.lg),
                   OAuthContinueButton(
                     kind: OAuthContinueKind.apple,
-                    onPressed: () => context.go(AppRoutes.home),
+                    onPressed: () =>
+                        context.go(AppRoutes.onboardingOnb1),
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Consumer<AuthController>(
@@ -203,7 +204,12 @@ class _SignupScreenState extends State<SignupScreen>
                         kind: OAuthContinueKind.google,
                         onPressed: auth.isLoading
                             ? null
-                            : () => completeGoogleSignIn(context),
+                            : () => completeGoogleSignIn(
+                                  context,
+                                  onSignedIn: () => context.go(
+                                    AppRoutes.onboardingOnb1,
+                                  ),
+                                ),
                       );
                     },
                   ),

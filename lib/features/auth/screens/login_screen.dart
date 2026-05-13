@@ -202,7 +202,11 @@ class _LoginScreenState extends State<LoginScreen>
                         kind: OAuthContinueKind.google,
                         onPressed: auth.isLoading
                             ? null
-                            : () => completeGoogleSignIn(context),
+                            : () => completeGoogleSignIn(
+                                  context,
+                                  onSignedIn: () =>
+                                      context.go(AppRoutes.home),
+                                ),
                       );
                     },
                   ),
