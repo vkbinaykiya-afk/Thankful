@@ -1,11 +1,32 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'app/app.dart';
+import 'app/app_routes.dart';
 import 'core/services/supabase_service.dart';
+import 'core/theme/app_theme.dart';
+import 'features/account/screens/cancel_confirm_screen.dart';
+import 'features/account/screens/user_account_screen.dart';
+import 'features/auth/controllers/auth_controller.dart';
+import 'features/auth/screens/login_screen.dart';
+import 'features/auth/screens/signup_screen.dart';
+import 'features/entry/screens/entry_review_screen.dart';
+import 'features/home/screens/home_screen.dart';
+import 'features/journal/screens/journal_listing_screen.dart';
+import 'features/onboarding/screens/demo_session_screen.dart';
+import 'features/onboarding/screens/launch_screen.dart';
+import 'features/onboarding/screens/onb1_screen.dart';
+import 'features/onboarding/screens/onb2_screen.dart';
+import 'features/onboarding/screens/onb3_screen.dart';
+import 'features/onboarding/screens/onboarding_convo_screen.dart';
+import 'features/paywall/screens/paywall_screen.dart';
+import 'features/session/screens/voice_session_screen.dart';
 
 String? _trimEnv(String? raw) {
   if (raw == null) return null;
@@ -17,6 +38,101 @@ String? _trimEnv(String? raw) {
     }
   }
   return v.isEmpty ? null : v;
+}
+
+/// The SDK starts [SupabaseAuth.recoverSession] without awaiting it after
+/// [Supabase.initialize], so [GoTrueClient.currentSession] can still be null
+/// briefly even when a session is persisted. Align reads with that work.
+Future<void> _awaitSupabaseAuthHydration() async {
+  final auth = Supabase.instance.client.auth;
+  try {
+    await auth.onAuthStateChange.first.timeout(const Duration(seconds: 5));
+  } on TimeoutException {
+    // Unlikely — proceed to read currentSession
+  } catch (_) {
+    // Stream error — proceed; currentSession may still be set
+  }
+  if (auth.currentSession != null) return;
+  // Expired-token refresh runs in the background recover path; give it a beat.
+  await Future<void>.delayed(const Duration(milliseconds: 300));
+}
+
+GoRouter _thankfulGoRouter({required bool hasSession}) {
+  return GoRouter(
+    initialLocation: hasSession ? AppRoutes.home : AppRoutes.login,
+    routes: [
+      GoRoute(path: AppRoutes.launch, builder: (_, _) => const LaunchScreen()),
+      GoRoute(path: AppRoutes.signup, builder: (_, _) => const SignupScreen()),
+      GoRoute(path: AppRoutes.login, builder: (_, _) => const LoginScreen()),
+      GoRoute(
+        path: AppRoutes.onboardingOnb1,
+        builder: (_, _) => const Onb1Screen(),
+      ),
+      GoRoute(
+        path: AppRoutes.onboardingOnb2,
+        builder: (_, _) => const Onb2Screen(),
+      ),
+      GoRoute(
+        path: AppRoutes.onboardingOnb3,
+        builder: (_, _) => const Onb3Screen(),
+      ),
+      GoRoute(
+        path: AppRoutes.onboardingConvo,
+        builder: (_, _) => const OnboardingConvoScreen(),
+      ),
+      GoRoute(path: AppRoutes.demo, builder: (_, _) => const DemoSessionScreen()),
+      GoRoute(
+        path: AppRoutes.paywall,
+        builder: (context, state) {
+          final onboarding = state.extra == true;
+          return PaywallScreen(showOnboardingProgress: onboarding);
+        },
+      ),
+      GoRoute(path: AppRoutes.home, builder: (_, _) => const HomeScreen()),
+      GoRoute(
+        path: AppRoutes.journalListing,
+        builder: (_, _) => const JournalListingScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.account,
+        builder: (_, _) => const UserAccountScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.cancelConfirm,
+        builder: (_, _) => const CancelConfirmScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.session,
+        builder: (_, _) => const VoiceSessionScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.entryReview,
+        builder: (context, state) {
+          final onboarding = state.extra == true;
+          return EntryReviewScreen(showOnboardingProgress: onboarding);
+        },
+      ),
+    ],
+  );
+}
+
+class _ThankfulAppRoot extends StatelessWidget {
+  const _ThankfulAppRoot({required this.router});
+
+  final GoRouter router;
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => AuthController(),
+      child: MaterialApp.router(
+        title: 'Thankful',
+        theme: AppTheme.light,
+        routerConfig: router,
+        debugShowCheckedModeBanner: false,
+      ),
+    );
+  }
 }
 
 Future<void> main() async {
@@ -55,10 +171,21 @@ Future<void> main() async {
   final anonKey =
       (keyDot != null && keyDot.isNotEmpty) ? keyDot : defineKey.trim();
 
+  var hasSessionForRouter = false;
   if (url.isNotEmpty && anonKey.isNotEmpty) {
     try {
-      await Supabase.initialize(url: url, anonKey: anonKey);
+      await Supabase.initialize(
+        url: url,
+        anonKey: anonKey,
+        authOptions: const FlutterAuthClientOptions(
+          authFlowType: AuthFlowType.pkce,
+          autoRefreshToken: true,
+        ),
+      );
       SupabaseService.markInitialized();
+      await _awaitSupabaseAuthHydration();
+      final hasSession = Supabase.instance.client.auth.currentSession != null;
+      hasSessionForRouter = hasSession;
     } catch (e, st) {
       if (kDebugMode) {
         debugPrint('Supabase.initialize failed: $e\n$st');
@@ -72,5 +199,6 @@ Future<void> main() async {
     );
   }
 
-  runApp(const ThankfulApp());
+  final router = _thankfulGoRouter(hasSession: hasSessionForRouter);
+  runApp(_ThankfulAppRoot(router: router));
 }
