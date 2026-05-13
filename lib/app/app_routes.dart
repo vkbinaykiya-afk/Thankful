@@ -2,9 +2,13 @@
 abstract final class AppRoutes {
   AppRoutes._();
 
+  /// Cold-start shell until first Supabase auth event (see [AuthGateNotifier.isLoading]).
+  static const splash = '/splash';
   static const launch = '/launch';
   static const signup = '/signup';
   static const login = '/login';
+  /// Entry for “onboarding” in auth redirects; resolves to first onboarding step.
+  static const onboarding = '/onboarding';
   static const onboardingOnb1 = '/onboarding/onb1';
   static const onboardingOnb2 = '/onboarding/onb2';
   static const onboardingOnb3 = '/onboarding/onb3';
