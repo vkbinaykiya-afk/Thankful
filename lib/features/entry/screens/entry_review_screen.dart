@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../core/services/transcription_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -49,12 +50,47 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
   final AudioPlayer _player = AudioPlayer();
   StreamSubscription<PlayerState>? _playerStateSub;
 
+  String? _transcript;
+  bool _isTranscribing = false;
+  String? _transcriptionError;
+
   @override
   void initState() {
     super.initState();
     _playerStateSub = _player.playerStateStream.listen((_) {
       if (mounted) setState(() {});
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_loadAudioSourceThenTranscribe());
+    });
+  }
+
+  Future<void> _loadAudioSourceThenTranscribe() async {
+    final path = _recordingPath;
+    if (path == null || path.isEmpty) return;
+
+    if (!mounted) return;
+    setState(() {
+      _isTranscribing = true;
+      _transcriptionError = null;
+    });
+
+    try {
+      await _ensureAudioSourceLoaded();
+      final text = await const TranscriptionService().transcribeAudio(path);
+      if (!mounted) return;
+      setState(() {
+        _isTranscribing = false;
+        _transcript = text;
+        _transcriptionError = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isTranscribing = false;
+        _transcriptionError = e.toString();
+      });
+    }
   }
 
   @override
@@ -160,6 +196,43 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
       }
     }
     if (mounted) setState(() {});
+  }
+
+  Widget _transcriptArea(bool hasRecording) {
+    if (!hasRecording) {
+      return Text(
+        'Transcription will appear here...',
+        style: AppTextStyles.journal,
+      );
+    }
+    if (_isTranscribing) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(AppSpacing.md),
+          child: SizedBox(
+            width: 28,
+            height: 28,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppColors.primary,
+            ),
+          ),
+        ),
+      );
+    }
+    if (_transcriptionError != null) {
+      return Text(
+        _transcriptionError!,
+        style: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+      );
+    }
+    if (_transcript != null) {
+      return Text(_transcript!, style: AppTextStyles.journal);
+    }
+    return Text(
+      'Transcription will appear here...',
+      style: AppTextStyles.journal,
+    );
   }
 
   @override
@@ -274,10 +347,7 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
                           Expanded(
                             child: SingleChildScrollView(
                               physics: const BouncingScrollPhysics(),
-                              child: Text(
-                                'Transcription will appear here...',
-                                style: AppTextStyles.journal,
-                              ),
+                              child: _transcriptArea(hasRecording),
                             ),
                           ),
                         ],
