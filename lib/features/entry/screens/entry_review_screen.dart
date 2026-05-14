@@ -5,8 +5,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../core/services/audio_upload_service.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/services/transcription_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
@@ -53,6 +56,7 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
   String? _transcript;
   bool _isTranscribing = false;
   String? _transcriptionError;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -235,6 +239,79 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
     );
   }
 
+  Future<void> _onSaveEntry() async {
+    if (_isSaving) return;
+
+    final localPath = _recordingPath;
+    if (localPath == null || localPath.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No recording to save.')),
+      );
+      return;
+    }
+
+    if (_isTranscribing) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please wait for transcription to finish.'),
+        ),
+      );
+      return;
+    }
+
+    if (!SupabaseService.isInitialized) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Supabase is not configured. Cannot save this entry yet.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You must be signed in to save.')),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() => _isSaving = true);
+
+    try {
+      final storagePath = await const AudioUploadService().uploadAudio(
+        localPath,
+        user.id,
+      );
+      await Supabase.instance.client.from('entries').insert(<String, dynamic>{
+        'user_id': user.id,
+        'transcript': _transcript ?? '',
+        'audio_url': storagePath,
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      });
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      if (widget.showOnboardingProgress) {
+        context.go(AppRoutes.paywall, extra: true);
+      } else {
+        context.go(AppRoutes.home);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save entry: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
@@ -370,13 +447,10 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
                 children: [
                   PrimaryButton(
                     label: 'Save entry',
-                    onPressed: () {
-                      if (widget.showOnboardingProgress) {
-                        context.go(AppRoutes.paywall, extra: true);
-                      } else {
-                        context.go(AppRoutes.home);
-                      }
-                    },
+                    isLoading: _isSaving,
+                    onPressed: (_isSaving || _isTranscribing)
+                        ? null
+                        : () => unawaited(_onSaveEntry()),
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   SecondaryButton(
