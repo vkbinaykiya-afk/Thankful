@@ -26,7 +26,6 @@ import 'features/onboarding/screens/onb2_screen.dart';
 import 'features/onboarding/screens/onb3_screen.dart';
 import 'features/onboarding/screens/onboarding_convo_screen.dart';
 import 'features/paywall/screens/paywall_screen.dart';
-import 'features/session/screens/voice_session_screen.dart';
 
 String? _trimEnv(String? raw) {
   if (raw == null) return null;
@@ -103,7 +102,7 @@ GoRouter _thankfulGoRouter({required bool hasSession}) {
       ),
       GoRoute(
         path: AppRoutes.session,
-        builder: (_, _) => const VoiceSessionScreen(),
+        builder: (_, _) => const OnboardingConvoScreen(),
       ),
       GoRoute(
         path: AppRoutes.entryReview,

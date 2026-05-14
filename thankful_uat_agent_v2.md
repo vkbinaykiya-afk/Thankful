@@ -114,7 +114,7 @@ Session prompt card:
 - Correct pose per screen:
   signup_screen.dart       → monk_namaste.png
   home_screen.dart         → monk_meditation.png
-  voice_session_screen.dart → monk_meditation.png
+  onboarding_convo_screen.dart → Monk_Convo.svg (session recording merged here)
   entry_review_screen.dart → monk_writing.png
   paywall_screen.dart      → monk_meditation.png
   milestone widget         → monk_milestone.png

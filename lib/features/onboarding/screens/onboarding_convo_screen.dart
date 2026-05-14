@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:developer' as developer;
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart' show getApplicationDocumentsDirectory;
+import 'package:record/record.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../core/theme/app_colors.dart';
@@ -11,6 +15,13 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
 
 /// Live journal / conversation UI — matches `docs/reference/design_htmls/convo-screen.html`.
+///
+/// Voice recording starts on load; stop navigates to entry review with `recordingPath`.
+///
+/// **Routed here (`AppRoutes.onboardingConvo`) when the user starts a new entry from:**
+/// 1. Onb3 — CTA **Begin my first entry**
+/// 2. Entry review — **Start over** (instead of save)
+/// 3. Home — **Make another entry**
 class OnboardingConvoScreen extends StatefulWidget {
   const OnboardingConvoScreen({super.key});
 
@@ -20,6 +31,13 @@ class OnboardingConvoScreen extends StatefulWidget {
 
 class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     with TickerProviderStateMixin {
+  final AudioRecorder _recorder = AudioRecorder();
+  StreamSubscription<RecordState>? _recordStateSub;
+  RecordState _recordState = RecordState.stop;
+
+  bool get _isRecordingActive =>
+      _recordState == RecordState.record || _recordState == RecordState.pause;
+
   static const List<double> _barHeights = [
     9, 16, 22, 24, 15, 12, 21, 18, 24, 14, 20, 10, 21, 15,
   ];
@@ -69,16 +87,167 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
       if (!mounted) return;
       setState(() => _elapsedSeconds++);
     });
+
+    _recordStateSub = _recorder.onStateChanged().listen((state) {
+      if (mounted) {
+        setState(() => _recordState = state);
+      }
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_startRecording());
+    });
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    unawaited(_recordStateSub?.cancel());
+    unawaited(_recorder.dispose());
     _waveController.dispose();
     _breatheController.dispose();
     _blinkController.dispose();
     _incenseController.dispose();
     super.dispose();
+  }
+
+  Future<bool> _canStartRecording() async {
+    var granted = await _recorder.hasPermission(request: false);
+    developer.log(
+      'DEBUG permission granted: $granted',
+      name: 'Thankful.VoiceSession',
+    );
+    if (!granted) {
+      granted = await _recorder.hasPermission(request: true);
+      developer.log(
+        'DEBUG permission granted: $granted',
+        name: 'Thankful.VoiceSession',
+      );
+    }
+    if (!granted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Microphone permission is required.')),
+        );
+      }
+      return false;
+    }
+
+    const encoder = AudioEncoder.aacLc;
+    final encoderSupported = await _recorder.isEncoderSupported(encoder);
+    developer.log(
+      'DEBUG encoder supported: $encoderSupported',
+      name: 'Thankful.VoiceSession',
+    );
+    if (!encoderSupported) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('AAC recording is not supported on this device.'),
+          ),
+        );
+      }
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> _startRecording() async {
+    developer.log(
+      'DEBUG _startRecording called',
+      name: 'Thankful.VoiceSession',
+    );
+    if (_isRecordingActive) {
+      developer.log(
+        'DEBUG _startRecording skipped (already active): $_recordState',
+        name: 'Thankful.VoiceSession',
+      );
+      return;
+    }
+
+    if (!await _canStartRecording()) {
+      developer.log(
+        'DEBUG _startRecording aborted (permission or encoder)',
+        name: 'Thankful.VoiceSession',
+      );
+      return;
+    }
+
+    const encoder = AudioEncoder.aacLc;
+
+    final base = await getApplicationDocumentsDirectory();
+    final recordingsDir = Directory('${base.path}/thankful_recordings');
+    if (!await recordingsDir.exists()) {
+      await recordingsDir.create(recursive: true);
+    }
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final path = '${recordingsDir.path}/$timestamp.m4a';
+
+    try {
+      await _recorder.start(
+        const RecordConfig(encoder: encoder),
+        path: path,
+      );
+      developer.log(
+        'DEBUG recording started at: $path',
+        name: 'Thankful.VoiceSession',
+      );
+    } catch (e) {
+      developer.log(
+        'DEBUG recording start failed: $e',
+        name: 'Thankful.VoiceSession',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not start recording: $e')),
+        );
+      }
+    }
+  }
+
+  Future<String?> _stopRecording() async {
+    if (!_isRecordingActive) {
+      developer.log(
+        'DEBUG _stopRecording skipped (not active): $_recordState',
+        name: 'Thankful.VoiceSession',
+      );
+      return null;
+    }
+
+    try {
+      final stoppedPath = await _recorder.stop();
+      developer.log(
+        'DEBUG recording stopped, file path: $stoppedPath',
+        name: 'Thankful.VoiceSession',
+      );
+      return stoppedPath;
+    } catch (e) {
+      developer.log(
+        'DEBUG recording stop failed: $e',
+        name: 'Thankful.VoiceSession',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not stop recording: $e')),
+        );
+      }
+      return null;
+    }
+  }
+
+  Future<void> _onStopTapped() async {
+    final path = await _stopRecording();
+    if (!mounted) return;
+    if (path == null || path.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No recording file was produced.')),
+      );
+      return;
+    }
+    final uri = Uri(
+      path: AppRoutes.entryReview,
+      queryParameters: <String, String>{'recordingPath': path},
+    );
+    context.go(uri.toString(), extra: true);
   }
 
   String _formatTimer(int totalSeconds) {
@@ -277,12 +446,11 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
               padding: const EdgeInsets.only(bottom: 6),
               child: Center(
                 child: Material(
-                  color: AppColors.surface,
+                  color: _isRecordingActive ? AppColors.cta : AppColors.surface,
                   shape: const CircleBorder(),
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
-                    onTap: () =>
-                        context.go(AppRoutes.entryReview, extra: true),
+                    onTap: _isRecordingActive ? _onStopTapped : null,
                     customBorder: const CircleBorder(),
                     child: Ink(
                       width: stopExtent,

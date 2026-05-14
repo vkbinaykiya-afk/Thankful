@@ -1,5 +1,10 @@
+import 'dart:async';
+import 'dart:developer' as developer;
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:just_audio/just_audio.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../core/theme/app_colors.dart';
@@ -17,7 +22,10 @@ import '../../../shared/widgets/thankful_app_title.dart';
 /// for step **5** of **6** — Thankful title + dot strip; Save continues to paywall.
 ///
 /// **Returning user:** `showOnboardingProgress` false — no progress UI; Save returns home.
-class EntryReviewScreen extends StatelessWidget {
+///
+/// **Recording:** optional `?recordingPath=` query (absolute path to local `.m4a`).
+/// Transcript + playback live in one surface card like the reference HTML.
+class EntryReviewScreen extends StatefulWidget {
   const EntryReviewScreen({
     super.key,
     this.showOnboardingProgress = false,
@@ -30,6 +38,47 @@ class EntryReviewScreen extends StatelessWidget {
   static const int currentStep = 5;
 
   static const Color _dotIdle = Color(0xFFD8D2CA);
+
+  @override
+  State<EntryReviewScreen> createState() => _EntryReviewScreenState();
+}
+
+class _EntryReviewScreenState extends State<EntryReviewScreen> {
+  String? _recordingPath;
+  bool _audioSourceLoaded = false;
+  final AudioPlayer _player = AudioPlayer();
+  StreamSubscription<PlayerState>? _playerStateSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _playerStateSub = _player.playerStateStream.listen((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final raw =
+        GoRouterState.of(context).uri.queryParameters['recordingPath'];
+    developer.log(
+      'DEBUG recordingPath: $raw',
+      name: 'Thankful.EntryReview',
+    );
+    if (_recordingPath == null && raw != null && raw.isNotEmpty) {
+      // Query values are usually decoded once; decode again if the path was
+      // over-encoded when navigating.
+      _recordingPath = Uri.decodeFull(raw);
+    }
+  }
+
+  @override
+  void dispose() {
+    unawaited(_playerStateSub?.cancel());
+    _player.dispose();
+    super.dispose();
+  }
 
   String _metaLine(DateTime d) {
     const months = <String>[
@@ -49,10 +98,76 @@ class EntryReviewScreen extends StatelessWidget {
     return '${months[d.month - 1]} ${d.day}, ${d.year} · 4 min 12 sec';
   }
 
+  String _formatDuration(Duration d) {
+    final m = d.inMinutes.remainder(60);
+    final s = d.inSeconds.remainder(60);
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  Future<bool> _ensureAudioSourceLoaded() async {
+    final path = _recordingPath;
+    if (path == null || path.isEmpty) return false;
+    if (_audioSourceLoaded) return true;
+
+    final file = File(path);
+    if (!await file.exists()) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Recording file not found. It may have been deleted, or the '
+              'path was lost in navigation.\n$path',
+            ),
+          ),
+        );
+      }
+      return false;
+    }
+
+    try {
+      await _player.setAudioSource(
+        AudioSource.uri(Uri.file(path)),
+        preload: true,
+      );
+      _audioSourceLoaded = true;
+      return true;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open recording for playback: $e')),
+        );
+      }
+      return false;
+    }
+  }
+
+  Future<void> _togglePlayPause() async {
+    final path = _recordingPath;
+    if (path == null || path.isEmpty) return;
+
+    try {
+      if (_player.playing) {
+        await _player.pause();
+      } else {
+        if (!await _ensureAudioSourceLoaded()) return;
+        await _player.play();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Playback error: $e')),
+        );
+      }
+    }
+    if (mounted) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     final now = DateTime.now();
+    final hasRecording =
+        _recordingPath != null && _recordingPath!.isNotEmpty;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -72,14 +187,14 @@ class EntryReviewScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (showOnboardingProgress) ...[
+                    if (widget.showOnboardingProgress) ...[
                       const ThankfulAppTitle(),
                       const SizedBox(height: AppSpacing.xs),
                       OnboardingProgressBar(
-                        totalSteps: totalSteps,
-                        currentStep: currentStep,
+                        totalSteps: EntryReviewScreen.totalSteps,
+                        currentStep: EntryReviewScreen.currentStep,
                         gap: 4,
-                        inactiveColor: _dotIdle,
+                        inactiveColor: EntryReviewScreen._dotIdle,
                       ),
                       const SizedBox(height: 12),
                     ] else
@@ -97,6 +212,7 @@ class EntryReviewScreen extends StatelessWidget {
                       style: AppTextStyles.caption,
                     ),
                     const SizedBox(height: AppSpacing.md),
+                    // One journal card: playback row + transcript (HTML `.card`).
                     Container(
                       height: 204,
                       decoration: BoxDecoration(
@@ -104,45 +220,67 @@ class EntryReviewScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(AppRadius.lg),
                       ),
                       padding: const EdgeInsets.all(16),
-                      child: SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Today I woke up feeling a quiet kind of '
-                              'grateful. Not the big, loud kind — just a '
-                              'small warmth when I made my tea and the '
-                              'light came through the window just right.',
-                              style: AppTextStyles.journal,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              IconButton(
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 40,
+                                  minHeight: 40,
+                                ),
+                                onPressed:
+                                    hasRecording ? _togglePlayPause : null,
+                                icon: Icon(
+                                  _player.playing
+                                      ? Icons.pause_rounded
+                                      : Icons.play_arrow_rounded,
+                                  color: hasRecording
+                                      ? AppColors.primary
+                                      : AppColors.textTertiary,
+                                ),
+                              ),
+                              const SizedBox(width: AppSpacing.xs),
+                              Expanded(
+                                child: StreamBuilder<Duration>(
+                                  stream: _player.positionStream,
+                                  builder: (context, snapshot) {
+                                    final pos =
+                                        snapshot.data ?? Duration.zero;
+                                    final dur =
+                                        _player.duration ?? Duration.zero;
+                                    if (dur == Duration.zero) {
+                                      return Text(
+                                        '--:--',
+                                        style: AppTextStyles.body.copyWith(
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      );
+                                    }
+                                    return Text(
+                                      '${_formatDuration(pos)} / ${_formatDuration(dur)}',
+                                      style: AppTextStyles.body.copyWith(
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              physics: const BouncingScrollPhysics(),
+                              child: Text(
+                                'Transcription will appear here...',
+                                style: AppTextStyles.journal,
+                              ),
                             ),
-                            const SizedBox(height: AppSpacing.sm),
-                            Text(
-                              'I\'ve been thinking about the conversation '
-                              'I had with my mother last week. She '
-                              'mentioned that she was proud of me, and I '
-                              'didn\'t quite know how to hold that. I still '
-                              'don\'t, really. But I\'m trying to let it in '
-                              'instead of deflecting.',
-                              style: AppTextStyles.journal,
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            Text(
-                              'The AI asked me what I was most looking '
-                              'forward to today. I said nothing in '
-                              'particular — and then I realised that '
-                              'wasn\'t true. I\'m looking forward to the '
-                              'quiet walk I\'ve been putting off.',
-                              style: AppTextStyles.journal,
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            Text(
-                              'Small things. That\'s where it lives, I '
-                              'think.',
-                              style: AppTextStyles.journal,
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                     const Spacer(),
@@ -163,7 +301,7 @@ class EntryReviewScreen extends StatelessWidget {
                   PrimaryButton(
                     label: 'Save entry',
                     onPressed: () {
-                      if (showOnboardingProgress) {
+                      if (widget.showOnboardingProgress) {
                         context.go(AppRoutes.paywall, extra: true);
                       } else {
                         context.go(AppRoutes.home);

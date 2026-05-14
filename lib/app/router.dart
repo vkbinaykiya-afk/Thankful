@@ -14,7 +14,6 @@ import '../features/home/screens/home_screen.dart';
 import '../features/journal/screens/journal_listing_screen.dart';
 import '../features/account/screens/cancel_confirm_screen.dart';
 import '../features/account/screens/user_account_screen.dart';
-import '../features/session/screens/voice_session_screen.dart';
 import '../features/entry/screens/entry_review_screen.dart';
 
 final appRouter = GoRouter(
@@ -60,7 +59,7 @@ final appRouter = GoRouter(
       path: AppRoutes.cancelConfirm,
       builder: (_, _) => const CancelConfirmScreen(),
     ),
-    GoRoute(path: AppRoutes.session, builder: (_, _) => const VoiceSessionScreen()),
+    GoRoute(path: AppRoutes.session, builder: (_, _) => const OnboardingConvoScreen()),
     GoRoute(
       path: AppRoutes.entryReview,
       builder: (context, state) {
