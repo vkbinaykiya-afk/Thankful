@@ -16,6 +16,7 @@ import 'features/account/screens/user_account_screen.dart';
 import 'features/auth/controllers/auth_controller.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/signup_screen.dart';
+import 'features/entry/entry_review_extra.dart';
 import 'features/entry/screens/entry_review_screen.dart';
 import 'features/home/screens/home_screen.dart';
 import 'features/journal/screens/journal_listing_screen.dart';
@@ -107,8 +108,12 @@ GoRouter _thankfulGoRouter({required bool hasSession}) {
       GoRoute(
         path: AppRoutes.entryReview,
         builder: (context, state) {
-          final onboarding = state.extra == true;
-          return EntryReviewScreen(showOnboardingProgress: onboarding);
+          final e = EntryReviewExtra.fromGoRouterExtra(state.extra);
+          return EntryReviewScreen(
+            showOnboardingProgress: e.showOnboardingProgress,
+            initialRecordingPath: e.recordingPath,
+            initialTranscript: e.transcript,
+          );
         },
       ),
     ],

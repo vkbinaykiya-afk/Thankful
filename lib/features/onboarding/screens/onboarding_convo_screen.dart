@@ -1,18 +1,24 @@
 import 'dart:async';
-import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
-import 'package:path_provider/path_provider.dart' show getApplicationDocumentsDirectory;
+import 'package:just_audio/just_audio.dart';
+import 'package:path_provider/path_provider.dart'
+    show getApplicationDocumentsDirectory, getTemporaryDirectory;
 import 'package:record/record.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../core/services/cartesia_service.dart';
+import '../../../core/services/deepgram_service.dart';
+import '../../../core/services/lhamo_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../entry/entry_review_extra.dart';
 
 /// Live journal / conversation UI — matches `docs/reference/design_htmls/convo-screen.html`.
 ///
@@ -31,12 +37,28 @@ class OnboardingConvoScreen extends StatefulWidget {
 
 class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     with TickerProviderStateMixin {
-  final AudioRecorder _recorder = AudioRecorder();
-  StreamSubscription<RecordState>? _recordStateSub;
-  RecordState _recordState = RecordState.stop;
+  static const int _pcmSampleRate = 16000;
 
-  bool get _isRecordingActive =>
-      _recordState == RecordState.record || _recordState == RecordState.pause;
+  final AudioRecorder _recorder = AudioRecorder();
+  final AudioPlayer _lhamoPlayer = AudioPlayer();
+
+  StreamSubscription<RecordState>? _recordStateSub;
+  StreamSubscription<Uint8List>? _micSessionSub;
+  StreamSubscription<String>? _dgSub;
+  DeepgramLiveSession? _deepgramSession;
+
+  final BytesBuilder _sessionPcm = BytesBuilder(copy: false);
+  final List<Map<String, String>> _conversationHistory = [];
+  int _exchangeCount = 0;
+  bool _lhamoSpeaking = false;
+  bool _userTurn = false;
+  String _fullTranscript = '';
+
+  bool _sessionEnding = false;
+  bool _awaitingUserSpeech = false;
+  bool _micStreamStarted = false;
+  bool _handlingFinalTranscript = false;
+  bool _recorderDisposed = false;
 
   static const List<double> _barHeights = [
     9, 16, 22, 24, 15, 12, 21, 18, 24, 14, 20, 10, 21, 15,
@@ -88,13 +110,12 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
       setState(() => _elapsedSeconds++);
     });
 
-    _recordStateSub = _recorder.onStateChanged().listen((state) {
-      if (mounted) {
-        setState(() => _recordState = state);
-      }
+    _recordStateSub = _recorder.onStateChanged().listen((_) {
+      if (mounted) setState(() {});
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_startRecording());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _startRecording();
+      unawaited(_startSession());
     });
   }
 
@@ -102,7 +123,17 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
   void dispose() {
     _timer?.cancel();
     unawaited(_recordStateSub?.cancel());
-    unawaited(_recorder.dispose());
+    unawaited(_micSessionSub?.cancel());
+    unawaited(_dgSub?.cancel());
+    final dgSession = _deepgramSession;
+    _deepgramSession = null;
+    if (dgSession != null) {
+      unawaited(dgSession.close());
+    }
+    if (!_recorderDisposed) {
+      unawaited(_recorder.dispose());
+    }
+    _lhamoPlayer.dispose();
     _waveController.dispose();
     _breatheController.dispose();
     _blinkController.dispose();
@@ -110,18 +141,275 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     super.dispose();
   }
 
+  Future<void> _stopUserListenOnly() async {
+    _awaitingUserSpeech = false;
+    await _dgSub?.cancel();
+    _dgSub = null;
+    final session = _deepgramSession;
+    _deepgramSession = null;
+    if (session != null) {
+      await session.close();
+    }
+  }
+
+  /// iOS often suspends the record stream after TTS playback — restart before listen.
+  Future<void> _restartMicStreamForUserTurn() async {
+    if (_recorderDisposed || _sessionEnding) return;
+    await _micSessionSub?.cancel();
+    _micSessionSub = null;
+    if (_micStreamStarted) {
+      try {
+        await _recorder.stop();
+      } catch (e) {
+        print('Mic restart stop failed: $e');
+      }
+      _micStreamStarted = false;
+    }
+    await _startRecording();
+    print('Mic stream restarted for user turn (started=$_micStreamStarted)');
+  }
+
+  Future<void> _playCartesiaBytes(Uint8List bytes) async {
+    if (!mounted) return;
+    setState(() => _lhamoSpeaking = true);
+    final dir = await getTemporaryDirectory();
+    final file = File(
+      '${dir.path}/lhamo_${DateTime.now().microsecondsSinceEpoch}.mp3',
+    );
+    await file.writeAsBytes(bytes);
+    try {
+      await _lhamoPlayer.stop();
+      await _lhamoPlayer.setFilePath(file.path);
+      await _lhamoPlayer.play();
+      await _lhamoPlayer.playerStateStream.firstWhere(
+        (s) =>
+            s.processingState == ProcessingState.completed ||
+            s.processingState == ProcessingState.idle,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _lhamoSpeaking = false);
+      }
+      try {
+        if (await file.exists()) await file.delete();
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _startSession() async {
+    try {
+      final opening = await const LhamoService().getResponse(
+        history: [],
+        userMessage: '',
+        exchangeCount: 0,
+        isClosing: false,
+      );
+      final audio = await const CartesiaService().speak(opening);
+      if (!mounted) return;
+      await _playCartesiaBytes(audio);
+      if (!mounted) return;
+      setState(() {
+        _fullTranscript += 'Lhamo: $opening\n\n';
+        _userTurn = true;
+      });
+      print('_userTurn=true after opening (micStreamStarted=$_micStreamStarted)');
+      print('Opening done - starting to listen');
+      await _beginListeningForUser();
+    } catch (e) {
+      print('Lhamo opening failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not start session: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _beginListeningForUser() async {
+    if (_sessionEnding || !mounted || !_userTurn) {
+      print(
+        '_beginListeningForUser skipped: ending=$_sessionEnding '
+        'mounted=$mounted userTurn=$_userTurn',
+      );
+      return;
+    }
+    print('_beginListeningForUser starting (micStreamStarted=$_micStreamStarted)');
+    await _stopUserListenOnly();
+    if (_sessionEnding || !mounted) return;
+
+    await _restartMicStreamForUserTurn();
+    if (_sessionEnding || !mounted) return;
+
+    _awaitingUserSpeech = true;
+    try {
+      _deepgramSession = await const DeepgramService().startLiveSession();
+      print('Deepgram live session started');
+    } catch (e, st) {
+      print('Deepgram live session failed: $e\n$st');
+      _awaitingUserSpeech = false;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not start listening: $e')),
+        );
+      }
+      return;
+    }
+
+    _dgSub = _deepgramSession!.transcriptStream.listen(
+      (text) {
+        print('Deepgram transcript: $text');
+        final t = text.trim();
+        if (t.isEmpty || _sessionEnding || !_awaitingUserSpeech) return;
+        unawaited(_onUserFinalTranscript(t));
+      },
+      onError: (Object e, StackTrace st) {
+        print('Deepgram error: $e\n$st');
+      },
+    );
+
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _onUserFinalTranscript(String text) async {
+    if (_handlingFinalTranscript || _sessionEnding || !_awaitingUserSpeech) {
+      return;
+    }
+    _handlingFinalTranscript = true;
+    _awaitingUserSpeech = false;
+    await _stopUserListenOnly();
+
+    if (!mounted) {
+      _handlingFinalTranscript = false;
+      return;
+    }
+
+    setState(() {
+      _fullTranscript += 'User: $text\n\n';
+    });
+
+    try {
+      await _getLhamoResponse(text);
+    } finally {
+      _handlingFinalTranscript = false;
+    }
+  }
+
+  Future<void> _getLhamoResponse(String userMessage) async {
+    if (_sessionEnding || !mounted) return;
+
+    try {
+      final reply = await const LhamoService().getResponse(
+        history: List<Map<String, String>>.from(_conversationHistory),
+        userMessage: userMessage,
+        exchangeCount: _exchangeCount,
+        isClosing: false,
+      );
+
+      _conversationHistory.add({'role': 'user', 'content': userMessage});
+
+      final audio = await const CartesiaService().speak(reply);
+      if (!mounted) return;
+      await _playCartesiaBytes(audio);
+      if (!mounted) return;
+
+      _conversationHistory.add({'role': 'assistant', 'content': reply});
+      setState(() {
+        _fullTranscript += 'Lhamo: $reply\n\n';
+      });
+
+      _exchangeCount++;
+      if (_exchangeCount >= 5) {
+        await _closeSession();
+        return;
+      } else {
+        _userTurn = true;
+        if (mounted) await _beginListeningForUser();
+      }
+    } catch (e) {
+      print('Lhamo response failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Conversation error: $e')),
+        );
+        _userTurn = true;
+        await _beginListeningForUser();
+      }
+    }
+  }
+
+  Future<void> _closeSession({bool isEarly = false}) async {
+    print('_closeSession called isEarly=$isEarly sessionEnding=$_sessionEnding');
+    _sessionEnding = true;
+    _userTurn = false;
+    _awaitingUserSpeech = false;
+    if (mounted) setState(() {});
+
+    if (isEarly) {
+      print('Session closed early (user stop)');
+    }
+    await _stopUserListenOnly();
+
+    try {
+      final closing = await const LhamoService().getResponse(
+        history: List<Map<String, String>>.from(_conversationHistory),
+        userMessage: '',
+        exchangeCount: _exchangeCount,
+        isClosing: true,
+      );
+      final bytes = await const CartesiaService().speak(closing);
+      if (mounted) {
+        await _playCartesiaBytes(bytes);
+        setState(() {
+          _fullTranscript += 'Lhamo: $closing\n\n';
+        });
+      }
+    } catch (e) {
+      print('Closing line failed: $e');
+    }
+
+    await _stopMicStreamSubscription();
+    try {
+      await _recorder.stop();
+      print('Recorder stopped');
+    } catch (e) {
+      print('Recorder stop failed: $e');
+    }
+    _micStreamStarted = false;
+
+    if (!_recorderDisposed) {
+      try {
+        await _recorder.dispose();
+        _recorderDisposed = true;
+        print('Recorder disposed');
+      } catch (e) {
+        print('Recorder dispose failed: $e');
+      }
+    }
+
+    final path = await _writeSessionWavFile();
+    if (!mounted) return;
+    if (path == null || path.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No recording file was produced.')),
+      );
+      return;
+    }
+
+    print('Navigating to entry review');
+    context.go(
+      AppRoutes.entryReview,
+      extra: EntryReviewExtra(
+        showOnboardingProgress: true,
+        recordingPath: path,
+        transcript: _fullTranscript,
+      ),
+    );
+  }
+
   Future<bool> _canStartRecording() async {
     var granted = await _recorder.hasPermission(request: false);
-    developer.log(
-      'DEBUG permission granted: $granted',
-      name: 'Thankful.VoiceSession',
-    );
     if (!granted) {
       granted = await _recorder.hasPermission(request: true);
-      developer.log(
-        'DEBUG permission granted: $granted',
-        name: 'Thankful.VoiceSession',
-      );
     }
     if (!granted) {
       if (mounted) {
@@ -132,17 +420,13 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
       return false;
     }
 
-    const encoder = AudioEncoder.aacLc;
+    const encoder = AudioEncoder.pcm16bits;
     final encoderSupported = await _recorder.isEncoderSupported(encoder);
-    developer.log(
-      'DEBUG encoder supported: $encoderSupported',
-      name: 'Thankful.VoiceSession',
-    );
     if (!encoderSupported) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('AAC recording is not supported on this device.'),
+            content: Text('PCM streaming is not supported on this device.'),
           ),
         );
       }
@@ -152,50 +436,44 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
   }
 
   Future<void> _startRecording() async {
-    developer.log(
-      'DEBUG _startRecording called',
-      name: 'Thankful.VoiceSession',
-    );
-    if (_isRecordingActive) {
-      developer.log(
-        'DEBUG _startRecording skipped (already active): $_recordState',
-        name: 'Thankful.VoiceSession',
-      );
-      return;
-    }
+    if (_micStreamStarted || _sessionEnding) return;
 
-    if (!await _canStartRecording()) {
-      developer.log(
-        'DEBUG _startRecording aborted (permission or encoder)',
-        name: 'Thankful.VoiceSession',
-      );
-      return;
-    }
-
-    const encoder = AudioEncoder.aacLc;
-
-    final base = await getApplicationDocumentsDirectory();
-    final recordingsDir = Directory('${base.path}/thankful_recordings');
-    if (!await recordingsDir.exists()) {
-      await recordingsDir.create(recursive: true);
-    }
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final path = '${recordingsDir.path}/$timestamp.m4a';
+    if (!await _canStartRecording()) return;
 
     try {
-      await _recorder.start(
-        const RecordConfig(encoder: encoder),
-        path: path,
+      const pcmConfig = RecordConfig(
+        encoder: AudioEncoder.pcm16bits,
+        sampleRate: _pcmSampleRate,
+        numChannels: 1,
       );
-      developer.log(
-        'DEBUG recording started at: $path',
-        name: 'Thankful.VoiceSession',
+      final stream = await _recorder.startStream(pcmConfig);
+      _micStreamStarted = true;
+
+      _micSessionSub = stream.listen(
+        (chunk) {
+          if (_sessionEnding) return;
+          if (!_lhamoSpeaking) {
+            _sessionPcm.add(chunk);
+          }
+          final dg = _deepgramSession;
+          print(
+            'Mic chunk received, awaitingUser=$_awaitingUserSpeech, '
+            'dgNull=${dg == null}',
+          );
+          if (_awaitingUserSpeech && dg != null) {
+            print('Feeding chunk to Deepgram');
+            dg.addAudio(chunk);
+          }
+        },
+        onError: (Object e, StackTrace st) {
+          print('Mic stream error: $e\n$st');
+        },
       );
+
+      if (mounted) setState(() {});
+
     } catch (e) {
-      developer.log(
-        'DEBUG recording start failed: $e',
-        name: 'Thankful.VoiceSession',
-      );
+      print('Recording start failed: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Could not start recording: $e')),
@@ -204,51 +482,35 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     }
   }
 
-  Future<String?> _stopRecording() async {
-    if (!_isRecordingActive) {
-      developer.log(
-        'DEBUG _stopRecording skipped (not active): $_recordState',
-        name: 'Thankful.VoiceSession',
-      );
-      return null;
-    }
+  Future<void> _stopMicStreamSubscription() async {
+    await _micSessionSub?.cancel();
+    _micSessionSub = null;
+    if (mounted) setState(() {});
+  }
 
-    try {
-      final stoppedPath = await _recorder.stop();
-      developer.log(
-        'DEBUG recording stopped, file path: $stoppedPath',
-        name: 'Thankful.VoiceSession',
-      );
-      return stoppedPath;
-    } catch (e) {
-      developer.log(
-        'DEBUG recording stop failed: $e',
-        name: 'Thankful.VoiceSession',
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not stop recording: $e')),
-        );
-      }
-      return null;
+  Future<String?> _writeSessionWavFile() async {
+    final pcm = _sessionPcm.takeBytes();
+    if (pcm.isEmpty) return null;
+
+    final wav = _pcmMono16LeWavBytes(Uint8List.fromList(pcm), _pcmSampleRate);
+    final base = await getApplicationDocumentsDirectory();
+    final dir = Directory('${base.path}/thankful_recordings');
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
     }
+    final path =
+        '${dir.path}/session_${DateTime.now().millisecondsSinceEpoch}.wav';
+    final f = File(path);
+    await f.writeAsBytes(wav);
+    return path;
   }
 
   Future<void> _onStopTapped() async {
-    final path = await _stopRecording();
-    if (!mounted) return;
-    if (path == null || path.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No recording file was produced.')),
-      );
-      return;
-    }
-    final uri = Uri(
-      path: AppRoutes.entryReview,
-      queryParameters: <String, String>{'recordingPath': path},
-    );
-    context.go(uri.toString(), extra: true);
+    print('_onStopTapped (sessionEnding=$_sessionEnding mic=$_micStreamStarted)');
+    await _closeSession(isEarly: true);
   }
+
+  bool get _canTapStop => !_sessionEnding;
 
   String _formatTimer(int totalSeconds) {
     final m = totalSeconds ~/ 60;
@@ -446,11 +708,11 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
               padding: const EdgeInsets.only(bottom: 6),
               child: Center(
                 child: Material(
-                  color: _isRecordingActive ? AppColors.cta : AppColors.surface,
+                  color: _canTapStop ? AppColors.cta : AppColors.surface,
                   shape: const CircleBorder(),
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
-                    onTap: _isRecordingActive ? _onStopTapped : null,
+                    onTap: _canTapStop ? _onStopTapped : null,
                     customBorder: const CircleBorder(),
                     child: Ink(
                       width: stopExtent,
@@ -486,6 +748,51 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
       ),
     );
   }
+}
+
+Uint8List _pcmMono16LeWavBytes(Uint8List pcmData, int sampleRate) {
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  final byteRate = sampleRate * numChannels * bitsPerSample ~/ 8;
+  final blockAlign = numChannels * bitsPerSample ~/ 8;
+  final dataSize = pcmData.length;
+  final riffChunkSize = 36 + dataSize;
+
+  final out = Uint8List(44 + dataSize);
+  var o = 0;
+  void writeAscii(String s) {
+    for (var i = 0; i < s.length; i++) {
+      out[o++] = s.codeUnitAt(i);
+    }
+  }
+
+  void writeLe32(int v) {
+    out[o++] = v & 0xff;
+    out[o++] = (v >> 8) & 0xff;
+    out[o++] = (v >> 16) & 0xff;
+    out[o++] = (v >> 24) & 0xff;
+  }
+
+  void writeLe16(int v) {
+    out[o++] = v & 0xff;
+    out[o++] = (v >> 8) & 0xff;
+  }
+
+  writeAscii('RIFF');
+  writeLe32(riffChunkSize);
+  writeAscii('WAVE');
+  writeAscii('fmt ');
+  writeLe32(16);
+  writeLe16(1);
+  writeLe16(numChannels);
+  writeLe32(sampleRate);
+  writeLe32(byteRate);
+  writeLe16(blockAlign);
+  writeLe16(bitsPerSample);
+  writeAscii('data');
+  writeLe32(dataSize);
+  out.setRange(44, 44 + pcmData.length, pcmData);
+  return out;
 }
 
 class _ConvoWaveform extends StatelessWidget {

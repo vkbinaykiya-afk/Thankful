@@ -33,10 +33,18 @@ class EntryReviewScreen extends StatefulWidget {
   const EntryReviewScreen({
     super.key,
     this.showOnboardingProgress = false,
+    this.initialRecordingPath,
+    this.initialTranscript,
   });
 
   /// Dot strip + app title (first-time onboarding only).
   final bool showOnboardingProgress;
+
+  /// When set (e.g. from [EntryReviewExtra]), used if `recordingPath` query is absent.
+  final String? initialRecordingPath;
+
+  /// Pre-filled session transcript (skips Whisper when non-empty).
+  final String? initialTranscript;
 
   static const int totalSteps = 6;
   static const int currentStep = 5;
@@ -61,6 +69,10 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialTranscript != null &&
+        widget.initialTranscript!.trim().isNotEmpty) {
+      _transcript = widget.initialTranscript;
+    }
     _playerStateSub = _player.playerStateStream.listen((_) {
       if (mounted) setState(() {});
     });
@@ -73,14 +85,28 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
     final path = _recordingPath;
     if (path == null || path.isEmpty) return;
 
+    final skipTranscription =
+        _transcript != null && _transcript!.trim().isNotEmpty;
+
     if (!mounted) return;
-    setState(() {
-      _isTranscribing = true;
-      _transcriptionError = null;
-    });
+    if (!skipTranscription) {
+      setState(() {
+        _isTranscribing = true;
+        _transcriptionError = null;
+      });
+    }
 
     try {
       await _ensureAudioSourceLoaded();
+      if (skipTranscription) {
+        if (mounted) {
+          setState(() {
+            _isTranscribing = false;
+            _transcriptionError = null;
+          });
+        }
+        return;
+      }
       final text = await const TranscriptionService().transcribeAudio(path);
       if (!mounted) return;
       setState(() {
@@ -110,6 +136,11 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
       // Query values are usually decoded once; decode again if the path was
       // over-encoded when navigating.
       _recordingPath = Uri.decodeFull(raw);
+    }
+    if (_recordingPath == null &&
+        widget.initialRecordingPath != null &&
+        widget.initialRecordingPath!.isNotEmpty) {
+      _recordingPath = widget.initialRecordingPath;
     }
   }
 

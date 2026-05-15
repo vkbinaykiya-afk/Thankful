@@ -5,23 +5,30 @@ class EntryReviewExtra {
   const EntryReviewExtra({
     this.showOnboardingProgress = false,
     this.recordingPath,
+    this.transcript,
   });
 
   final bool showOnboardingProgress;
   final String? recordingPath;
+  final String? transcript;
 
-  static ({bool showOnboardingProgress, String? recordingPath}) fromGoRouterExtra(
+  static ({
+    bool showOnboardingProgress,
+    String? recordingPath,
+    String? transcript,
+  }) fromGoRouterExtra(
     Object? extra,
   ) {
     if (extra is EntryReviewExtra) {
       return (
         showOnboardingProgress: extra.showOnboardingProgress,
         recordingPath: extra.recordingPath,
+        transcript: extra.transcript,
       );
     }
     if (extra == true) {
-      return (showOnboardingProgress: true, recordingPath: null);
+      return (showOnboardingProgress: true, recordingPath: null, transcript: null);
     }
-    return (showOnboardingProgress: false, recordingPath: null);
+    return (showOnboardingProgress: false, recordingPath: null, transcript: null);
   }
 }

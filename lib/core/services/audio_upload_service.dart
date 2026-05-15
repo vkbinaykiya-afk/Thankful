@@ -42,14 +42,18 @@ class AudioUploadService {
     }
 
     final ts = DateTime.now().millisecondsSinceEpoch;
-    final storagePath = '$uid/$ts.m4a';
+    final lowerPath = filePath.toLowerCase();
+    final isWav = lowerPath.endsWith('.wav');
+    final ext = isWav ? 'wav' : 'm4a';
+    final storagePath = '$uid/$ts.$ext';
+    final contentType = isWav ? 'audio/wav' : 'audio/mp4';
 
     try {
       await Supabase.instance.client.storage.from(_bucket).upload(
             storagePath,
             file,
-            fileOptions: const FileOptions(
-              contentType: 'audio/mp4',
+            fileOptions: FileOptions(
+              contentType: contentType,
               upsert: true,
             ),
           );

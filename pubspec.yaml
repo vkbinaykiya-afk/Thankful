@@ -20,6 +20,7 @@ dependencies:
   path_provider: ^2.1.5
   permission_handler: ^11.4.0
   http: ^1.2.0
+  web_socket_channel: ^2.4.0
   flutter_dotenv: ^5.1.0
   google_sign_in: ^7.2.0
   sign_in_with_apple: ^6.1.0

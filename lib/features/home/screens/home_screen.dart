@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
 import 'package:just_audio/just_audio.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -125,7 +128,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _playerStateSub = _audioPlayer.playerStateStream.listen((state) {
-      if (state.processingState == ProcessingState.completed) {
+      if (state.processingState == ProcessingState.completed ||
+          state.processingState == ProcessingState.idle) {
         if (mounted) {
           setState(() {
             _playingEntryId = null;
@@ -159,15 +163,36 @@ class _HomeScreenState extends State<HomeScreen> {
       final signedUrl = await Supabase.instance.client.storage
           .from('Journal-audio-files')
           .createSignedUrl(audioPath, 3600);
-      await _audioPlayer.setUrl(signedUrl);
+
+      final response = await http.get(Uri.parse(signedUrl));
+      if (response.statusCode != 200) {
+        throw StateError(
+          'Failed to download audio (${response.statusCode})',
+        );
+      }
+
+      final dir = await getTemporaryDirectory();
+      final safeName = audioPath.split('/').last.replaceAll('..', '');
+      final cacheFile = File('${dir.path}/home_play_${entryId}_$safeName');
+      await cacheFile.writeAsBytes(response.bodyBytes);
+
+      await _audioPlayer.setAudioSource(
+        AudioSource.file(cacheFile.path),
+        preload: true,
+      );
       if (mounted) {
         setState(() {
           _playingEntryId = entryId;
         });
       }
       unawaited(_audioPlayer.play());
-    } catch (_) {
-      if (mounted) setState(() => _playingEntryId = null);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _playingEntryId = null);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not play recording: $e')),
+        );
+      }
     }
   }
 
