@@ -1,4 +1,9 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
@@ -12,14 +17,18 @@ class JournalEntryCard extends StatelessWidget {
     required this.body,
     required this.durationLabel,
     this.onPlay,
+    this.onShare,
     this.onTap,
+    this.isPlaying = false,
   });
 
   final String timeLabel;
   final String body;
   final String durationLabel;
   final VoidCallback? onPlay;
+  final VoidCallback? onShare;
   final VoidCallback? onTap;
+  final bool isPlaying;
 
   @override
   Widget build(BuildContext context) {
@@ -78,18 +87,56 @@ class JournalEntryCard extends StatelessWidget {
               ],
             ),
           ),
+          if (onPlay != null) ...[
+            const SizedBox(width: 12),
+            Material(
+              color: AppColors.surfaceRaised,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: onPlay,
+                child: SizedBox(
+                  width: 30,
+                  height: 30,
+                  child: Icon(
+                    isPlaying
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
+                    size: 18,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(width: 12),
           Material(
             color: AppColors.surfaceRaised,
             shape: const CircleBorder(),
             child: InkWell(
               customBorder: const CircleBorder(),
-              onTap: onPlay,
+              onTap: () {
+                if (onShare != null) {
+                  onShare!();
+                  return;
+                }
+                unawaited(
+                  Share.shareXFiles(
+                    [
+                      XFile.fromData(
+                        Uint8List.fromList(utf8.encode(body)),
+                        mimeType: 'text/plain',
+                        name: 'thankful-entry.txt',
+                      ),
+                    ],
+                  ),
+                );
+              },
               child: const SizedBox(
                 width: 30,
                 height: 30,
                 child: Icon(
-                  Icons.play_arrow_rounded,
+                  Icons.share_rounded,
                   size: 18,
                   color: AppColors.primary,
                 ),

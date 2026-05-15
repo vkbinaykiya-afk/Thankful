@@ -1,5 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../core/services/supabase_service.dart';
@@ -11,7 +16,7 @@ import '../../../shared/widgets/monk_mascot.dart';
 import '../../../shared/widgets/primary_button.dart';
 
 /// Home — matches `docs/reference/design_htmls/screen8_home.html` (DS spacing: 6px grid).
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   /// CSS reference `.monk { width: 195px }`; on-device display scale (larger art, less edge whitespace).
@@ -85,10 +90,196 @@ class HomeScreen extends StatelessWidget {
     return 'A';
   }
 
+  static String _calendarLetter(int weekday) {
+    switch (weekday) {
+      case DateTime.monday:
+        return 'M';
+      case DateTime.tuesday:
+      case DateTime.thursday:
+        return 'T';
+      case DateTime.wednesday:
+        return 'W';
+      case DateTime.friday:
+        return 'F';
+      case DateTime.saturday:
+      case DateTime.sunday:
+        return 'S';
+      default:
+        return '';
+    }
+  }
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  List<Map<String, dynamic>> _todayEntries = [];
+  bool _isLoading = true;
+
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  String? _playingEntryId;
+  StreamSubscription<PlayerState>? _playerStateSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _playerStateSub = _audioPlayer.playerStateStream.listen((state) {
+      if (state.processingState == ProcessingState.completed) {
+        if (mounted) {
+          setState(() {
+            _playingEntryId = null;
+          });
+        }
+      }
+    });
+    unawaited(_fetchTodayEntries());
+  }
+
+  @override
+  void dispose() {
+    final sub = _playerStateSub;
+    _playerStateSub = null;
+    if (sub != null) {
+      unawaited(sub.cancel());
+    }
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  Future<void> _togglePlay(String entryId, String audioPath) async {
+    if (_playingEntryId == entryId) {
+      await _audioPlayer.pause();
+      if (mounted) setState(() => _playingEntryId = null);
+      return;
+    }
+
+    try {
+      await _audioPlayer.stop();
+      final signedUrl = await Supabase.instance.client.storage
+          .from('Journal-audio-files')
+          .createSignedUrl(audioPath, 3600);
+      await _audioPlayer.setUrl(signedUrl);
+      if (mounted) {
+        setState(() {
+          _playingEntryId = entryId;
+        });
+      }
+      unawaited(_audioPlayer.play());
+    } catch (_) {
+      if (mounted) setState(() => _playingEntryId = null);
+    }
+  }
+
+  Future<void> _fetchTodayEntries() async {
+    if (!SupabaseService.isInitialized) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _todayEntries = [];
+        });
+      }
+      return;
+    }
+
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _todayEntries = [];
+        });
+      }
+      return;
+    }
+
+    final nowUtc = DateTime.now().toUtc();
+    final startUtc = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day);
+
+    try {
+      final response = await Supabase.instance.client
+          .from('entries')
+          .select()
+          .eq('user_id', user.id)
+          .gte('created_at', startUtc.toIso8601String())
+          .order('created_at', ascending: false);
+
+      final list = (response as List<dynamic>)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+
+      if (!mounted) return;
+      setState(() {
+        _todayEntries = list;
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _todayEntries = [];
+        _isLoading = false;
+      });
+    }
+  }
+
+  String _formatEntryTime(DateTime created) {
+    final local = created.toLocal();
+    var h = local.hour;
+    final m = local.minute;
+    final period = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h == 0) h = 12;
+    return '$h:${m.toString().padLeft(2, '0')} $period';
+  }
+
+  _HomeJournalSnippet _mapEntryToSnippet(Map<String, dynamic> row) {
+    final createdRaw = row['created_at'];
+    DateTime created;
+    if (createdRaw is String) {
+      created = DateTime.parse(createdRaw);
+    } else {
+      created = DateTime.now();
+    }
+    final transcript = row['transcript']?.toString() ?? '';
+    final body = transcript.length > 120
+        ? transcript.substring(0, 120)
+        : transcript;
+    return _HomeJournalSnippet(
+      timeLabel: _formatEntryTime(created),
+      body: body,
+      durationLabel: '',
+    );
+  }
+
+  Widget _buildTodayEntryCard(Map<String, dynamic> entry) {
+    final snippet = _mapEntryToSnippet(entry);
+    final entryId = entry['id']?.toString() ?? '';
+    final audioRaw = entry['audio_url'];
+    final hasAudio =
+        audioRaw != null && audioRaw.toString().trim().isNotEmpty;
+    return JournalEntryCard(
+      timeLabel: snippet.timeLabel,
+      body: snippet.body,
+      durationLabel: snippet.durationLabel,
+      isPlaying: hasAudio && _playingEntryId == entryId,
+      onPlay: hasAudio
+          ? () => unawaited(
+                _togglePlay(entryId, audioRaw.toString()),
+              )
+          : null,
+      onShare: () => unawaited(
+            Share.share(
+              entry['transcript'] ?? '',
+              sharePositionOrigin: Rect.fromLTWH(0, 0, 100, 100),
+            ),
+          ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final today = DateTime.now();
-    final weekDays = _weekDaysContaining(today);
+    final weekDays = HomeScreen._weekDaysContaining(today);
 
     // Demo visibility — replace with streak / entry queries.
     const streakCount = 7;
@@ -147,8 +338,6 @@ class HomeScreen extends StatelessWidget {
       color: AppColors.primary,
     );
 
-    final todayEntries = _todayEntriesPlaceholder();
-
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Stack(
@@ -159,9 +348,9 @@ class HomeScreen extends StatelessWidget {
           Positioned(
             left: 0,
             right: 0,
-            bottom: _monkBottomPx,
+            bottom: HomeScreen._monkBottomPx,
             child: IgnorePointer(
-              child: _HomeMonkEntrance(width: _monkDisplayWidth),
+              child: _HomeMonkEntrance(width: HomeScreen._monkDisplayWidth),
             ),
           ),
           // Layer 2 — SafeArea + scrollable column (screen8: padding 12 top, 22 horizontal).
@@ -184,7 +373,7 @@ class HomeScreen extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(_greetingPhrase(), style: greetingSmall),
+                          Text(HomeScreen._greetingPhrase(), style: greetingSmall),
                           SizedBox(height: AppSpacing.xs),
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -192,7 +381,7 @@ class HomeScreen extends StatelessWidget {
                             children: [
                               Expanded(
                                 child: Text(
-                                  _formatGreetingDate(today),
+                                  HomeScreen._formatGreetingDate(today),
                                   style: dateLarge,
                                 ),
                               ),
@@ -211,7 +400,7 @@ class HomeScreen extends StatelessWidget {
                                       shape: BoxShape.circle,
                                     ),
                                     child: Text(
-                                      _avatarLetter(),
+                                      HomeScreen._avatarLetter(),
                                       style: _figtreeStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w500,
@@ -258,7 +447,7 @@ class HomeScreen extends StatelessWidget {
                         children: [
                           for (var i = 0; i < 7; i++)
                             _CalendarDayColumn(
-                              letter: _calendarLetter(
+                              letter: HomeScreen._calendarLetter(
                                 weekDays[i].weekday,
                               ),
                               dayNum: weekDays[i].day,
@@ -291,32 +480,43 @@ class HomeScreen extends StatelessWidget {
 
                       // 5. Entries zone (fixed height; inner scroll)
                       SizedBox(
-                        height: _entriesZoneHeight,
+                        height: HomeScreen._entriesZoneHeight,
                         child: ScrollConfiguration(
                           behavior: ScrollConfiguration.of(context).copyWith(
                             scrollbars: false,
                           ),
-                          child: SingleChildScrollView(
-                            physics: const ClampingScrollPhysics(),
-                            clipBehavior: Clip.hardEdge,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                for (var i = 0;
-                                    i < todayEntries.length;
-                                    i++) ...[
-                                  if (i > 0)
-                                    SizedBox(height: AppSpacing.xs),
-                                  JournalEntryCard(
-                                    timeLabel: todayEntries[i].timeLabel,
-                                    body: todayEntries[i].body,
-                                    durationLabel:
-                                        todayEntries[i].durationLabel,
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
+                          child: _isLoading
+                              ? const Center(
+                                  child: CircularProgressIndicator(),
+                                )
+                              : _todayEntries.isEmpty
+                                  ? Center(
+                                      child: Text(
+                                        'No entries today yet',
+                                        style: AppTextStyles.caption.copyWith(
+                                          color: AppColors.textTertiary,
+                                        ),
+                                      ),
+                                    )
+                                  : SingleChildScrollView(
+                                      physics: const ClampingScrollPhysics(),
+                                      clipBehavior: Clip.hardEdge,
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          for (var i = 0;
+                                              i < _todayEntries.length;
+                                              i++) ...[
+                                            if (i > 0)
+                                              SizedBox(height: AppSpacing.xs),
+                                            _buildTodayEntryCard(
+                                              _todayEntries[i],
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
                         ),
                       ),
 
@@ -341,55 +541,6 @@ class HomeScreen extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  /// Replace with persisted “today” entries; length **> 1** uses scroll inside [_entriesZoneHeight].
-  static List<_HomeJournalSnippet> _todayEntriesPlaceholder() {
-    return [
-      _HomeJournalSnippet(
-        timeLabel: '9:14 AM',
-        body:
-            'Today I woke up feeling a quiet kind of grateful. Not the big, loud kind — just a small warmth when I made my tea.',
-        durationLabel: '4 min 12 sec',
-      ),
-      _HomeJournalSnippet(
-        timeLabel: '2:38 PM',
-        body:
-            'Walked by the park on the way back. Stopped for a moment. Didn\'t need to — just wanted to. That felt like something.',
-        durationLabel: '1 min 48 sec',
-      ),
-      _HomeJournalSnippet(
-        timeLabel: '7:05 PM',
-        body:
-            'Caught up with an old friend. We laughed about nothing in particular — that was the nicest part.',
-        durationLabel: '3 min 01 sec',
-      ),
-      _HomeJournalSnippet(
-        timeLabel: '8:22 PM',
-        body:
-            'Left the dishes for tomorrow without guilt. Small win, maybe — but it felt honest.',
-        durationLabel: '2 min 06 sec',
-      ),
-    ];
-  }
-
-  static String _calendarLetter(int weekday) {
-    switch (weekday) {
-      case DateTime.monday:
-        return 'M';
-      case DateTime.tuesday:
-      case DateTime.thursday:
-        return 'T';
-      case DateTime.wednesday:
-        return 'W';
-      case DateTime.friday:
-        return 'F';
-      case DateTime.saturday:
-      case DateTime.sunday:
-        return 'S';
-      default:
-        return '';
-    }
   }
 }
 
@@ -552,4 +703,3 @@ class _CalendarDayColumn extends StatelessWidget {
     );
   }
 }
-
