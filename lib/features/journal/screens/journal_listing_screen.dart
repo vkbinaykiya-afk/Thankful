@@ -1,95 +1,279 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
+import 'package:just_audio/just_audio.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/journal_entry_card.dart';
 
 /// Matches `docs/reference/design_htmls/Journal listing.html`.
-class JournalListingScreen extends StatelessWidget {
+class JournalListingScreen extends StatefulWidget {
   const JournalListingScreen({super.key});
 
-  static final List<_JournalDateGroup> _demoGroups = [
-    _JournalDateGroup(
-      label: 'Today',
-      entries: [
-        _JournalEntry(
-          timeLabel: '9:14 AM',
-          body:
-              'Today I woke up feeling a quiet kind of grateful. Not the big, loud kind — just a small warmth when I made my tea.',
-          durationLabel: '4 min 12 sec',
-        ),
-        _JournalEntry(
-          timeLabel: '2:38 PM',
-          body:
-              'Walked by the park on the way back. Stopped for a moment. Didn\'t need to — just wanted to. That felt like something.',
-          durationLabel: '1 min 48 sec',
-        ),
-      ],
-    ),
-    _JournalDateGroup(
-      label: 'Wed, May 7',
-      entries: [
-        _JournalEntry(
-          timeLabel: '8:02 AM',
-          body:
-              'Slept well for the first time in a while. Woke up before my alarm. That small thing felt like a win.',
-          durationLabel: '2 min 55 sec',
-        ),
-      ],
-    ),
-    _JournalDateGroup(
-      label: 'Tue, May 6',
-      entries: [
-        _JournalEntry(
-          timeLabel: '9:47 PM',
-          body:
-              'Grateful for the call with Priya. We hadn\'t spoken properly in months. She remembered something I had completely forgotten about myself.',
-          durationLabel: '5 min 30 sec',
-        ),
-      ],
-    ),
-    _JournalDateGroup(
-      label: 'Sun, May 4',
-      entries: [
-        _JournalEntry(
-          timeLabel: '10:15 AM',
-          body:
-              'Made breakfast slowly. No phone, no podcast. Just the sounds of the kitchen. I\'d forgotten how good that feels.',
-          durationLabel: '3 min 12 sec',
-        ),
-      ],
-    ),
-    _JournalDateGroup(
-      label: 'Sat, May 3',
-      entries: [
-        _JournalEntry(
-          timeLabel: '7:50 AM',
-          body:
-              'Early morning. Light came in at an angle I hadn\'t noticed before. Grateful for the window, honestly.',
-          durationLabel: '2 min 04 sec',
-        ),
-      ],
-    ),
-    _JournalDateGroup(
-      label: 'Fri, Apr 25',
-      entries: [
-        _JournalEntry(
-          timeLabel: '8:30 AM',
-          body:
-              'Something shifted this week. Can\'t name it exactly. Just lighter.',
-          durationLabel: '1 min 22 sec',
-        ),
-        _JournalEntry(
-          timeLabel: '9:12 PM',
-          body:
-              'End of a long week. Grateful it\'s done. Grateful for the people who made it bearable.',
-          durationLabel: '2 min 48 sec',
-        ),
-      ],
-    ),
+  @override
+  State<JournalListingScreen> createState() => _JournalListingScreenState();
+}
+
+class _JournalListingScreenState extends State<JournalListingScreen> {
+  List<_JournalDateGroup> _groups = [];
+  bool _isLoading = true;
+
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  String? _playingEntryId;
+  StreamSubscription<PlayerState>? _playerStateSub;
+
+  static const List<String> _weekdayShort = [
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat',
+    'Sun',
   ];
+
+  static const List<String> _monthShort = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _playerStateSub = _audioPlayer.playerStateStream.listen((state) {
+      if (state.processingState == ProcessingState.completed ||
+          state.processingState == ProcessingState.idle) {
+        if (mounted) {
+          setState(() => _playingEntryId = null);
+        }
+      }
+    });
+    unawaited(_fetchEntries());
+  }
+
+  @override
+  void dispose() {
+    final sub = _playerStateSub;
+    _playerStateSub = null;
+    if (sub != null) {
+      unawaited(sub.cancel());
+    }
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchEntries() async {
+    if (!SupabaseService.isInitialized) {
+      if (mounted) {
+        setState(() {
+          _groups = [];
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      if (mounted) {
+        setState(() {
+          _groups = [];
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+
+    try {
+      final response = await Supabase.instance.client
+          .from('entries')
+          .select()
+          .eq('user_id', user.id)
+          .order('created_at', ascending: false);
+
+      final list = (response as List<dynamic>)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+
+      if (!mounted) return;
+      setState(() {
+        _groups = _groupEntries(list);
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _groups = [];
+        _isLoading = false;
+      });
+    }
+  }
+
+  DateTime _parseCreated(Map<String, dynamic> row) {
+    final raw = row['created_at'];
+    if (raw is String) {
+      return DateTime.parse(raw).toLocal();
+    }
+    return DateTime.now();
+  }
+
+  String _dateGroupLabel(DateTime local) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(local.year, local.month, local.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    if (day == today) return 'Today';
+    if (day == yesterday) return 'Yesterday';
+    return '${_weekdayShort[local.weekday - 1]}, '
+        '${_monthShort[local.month - 1]} ${local.day}';
+  }
+
+  String _formatEntryTime(DateTime created) {
+    var h = created.hour;
+    final m = created.minute;
+    final period = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h == 0) h = 12;
+    return '$h:${m.toString().padLeft(2, '0')} $period';
+  }
+
+  _JournalEntry _mapRowToJournalEntry(Map<String, dynamic> row) {
+    final created = _parseCreated(row);
+    final transcript = row['transcript']?.toString() ?? '';
+    final body = transcript.length > 120
+        ? transcript.substring(0, 120)
+        : transcript;
+    final audioRaw = row['audio_url'];
+    return _JournalEntry(
+      id: row['id']?.toString() ?? '',
+      timeLabel: _formatEntryTime(created),
+      body: body,
+      durationLabel: '',
+      audioUrl: audioRaw != null && audioRaw.toString().trim().isNotEmpty
+          ? audioRaw.toString()
+          : null,
+      transcript: transcript,
+    );
+  }
+
+  List<_JournalDateGroup> _groupEntries(List<Map<String, dynamic>> rows) {
+    if (rows.isEmpty) return [];
+
+    final groups = <_JournalDateGroup>[];
+    String? currentLabel;
+    final currentEntries = <_JournalEntry>[];
+
+    for (final row in rows) {
+      final label = _dateGroupLabel(_parseCreated(row));
+      final entry = _mapRowToJournalEntry(row);
+
+      if (label != currentLabel) {
+        if (currentLabel != null) {
+          groups.add(
+            _JournalDateGroup(
+              label: currentLabel,
+              entries: List<_JournalEntry>.from(currentEntries),
+            ),
+          );
+          currentEntries.clear();
+        }
+        currentLabel = label;
+      }
+      currentEntries.add(entry);
+    }
+
+    if (currentLabel != null && currentEntries.isNotEmpty) {
+      groups.add(
+        _JournalDateGroup(
+          label: currentLabel,
+          entries: List<_JournalEntry>.from(currentEntries),
+        ),
+      );
+    }
+
+    return groups;
+  }
+
+  Future<void> _togglePlay(String entryId, String audioPath) async {
+    if (_playingEntryId == entryId) {
+      await _audioPlayer.pause();
+      if (mounted) setState(() => _playingEntryId = null);
+      return;
+    }
+
+    try {
+      await _audioPlayer.stop();
+      final signedUrl = await Supabase.instance.client.storage
+          .from('Journal-audio-files')
+          .createSignedUrl(audioPath, 3600);
+
+      final response = await http.get(Uri.parse(signedUrl));
+      if (response.statusCode != 200) {
+        throw StateError(
+          'Failed to download audio (${response.statusCode})',
+        );
+      }
+
+      final dir = await getTemporaryDirectory();
+      final safeName = audioPath.split('/').last.replaceAll('..', '');
+      final cacheFile = File('${dir.path}/journal_play_${entryId}_$safeName');
+      await cacheFile.writeAsBytes(response.bodyBytes);
+
+      await _audioPlayer.setAudioSource(
+        AudioSource.file(cacheFile.path),
+        preload: true,
+      );
+      if (mounted) {
+        setState(() => _playingEntryId = entryId);
+      }
+      unawaited(_audioPlayer.play());
+    } catch (e) {
+      if (mounted) {
+        setState(() => _playingEntryId = null);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not play recording: $e')),
+        );
+      }
+    }
+  }
+
+  Widget _buildEntryCard(_JournalEntry entry) {
+    final hasAudio = entry.audioUrl != null;
+    return JournalEntryCard(
+      timeLabel: entry.timeLabel,
+      body: entry.body,
+      durationLabel: entry.durationLabel,
+      isPlaying: hasAudio && _playingEntryId == entry.id,
+      onPlay: hasAudio
+          ? () => unawaited(_togglePlay(entry.id, entry.audioUrl!))
+          : null,
+      onShare: () => unawaited(
+            Share.share(
+              entry.transcript,
+              sharePositionOrigin: Rect.fromLTWH(0, 0, 100, 100),
+            ),
+          ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -143,40 +327,52 @@ class JournalListingScreen extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.screenH,
-                  0,
-                  AppSpacing.screenH,
-                  AppSpacing.screenBot,
-                ),
-                itemCount: _demoGroups.length,
-                itemBuilder: (context, gi) {
-                  final g = _demoGroups[gi];
-                  return Padding(
-                    padding: EdgeInsets.only(
-                      bottom: gi < _demoGroups.length - 1 ? AppSpacing.md : 0,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-                          child: Text(g.label, style: dateLabelStyle),
-                        ),
-                        for (var ei = 0; ei < g.entries.length; ei++) ...[
-                          if (ei > 0) SizedBox(height: AppSpacing.xs),
-                          JournalEntryCard(
-                            timeLabel: g.entries[ei].timeLabel,
-                            body: g.entries[ei].body,
-                            durationLabel: g.entries[ei].durationLabel,
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _groups.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No entries yet',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.textTertiary,
+                            ),
                           ),
-                        ],
-                      ],
-                    ),
-                  );
-                },
-              ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(
+                            AppSpacing.screenH,
+                            0,
+                            AppSpacing.screenH,
+                            AppSpacing.screenBot,
+                          ),
+                          itemCount: _groups.length,
+                          itemBuilder: (context, gi) {
+                            final g = _groups[gi];
+                            return Padding(
+                              padding: EdgeInsets.only(
+                                bottom: gi < _groups.length - 1
+                                    ? AppSpacing.md
+                                    : 0,
+                              ),
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.stretch,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                      bottom: AppSpacing.xs,
+                                    ),
+                                    child: Text(g.label, style: dateLabelStyle),
+                                  ),
+                                  for (var ei = 0; ei < g.entries.length; ei++) ...[
+                                    if (ei > 0) SizedBox(height: AppSpacing.xs),
+                                    _buildEntryCard(g.entries[ei]),
+                                  ],
+                                ],
+                              ),
+                            );
+                          },
+                        ),
             ),
           ],
         ),
@@ -197,12 +393,18 @@ class _JournalDateGroup {
 
 class _JournalEntry {
   const _JournalEntry({
+    required this.id,
     required this.timeLabel,
     required this.body,
     required this.durationLabel,
+    this.audioUrl,
+    required this.transcript,
   });
 
+  final String id;
   final String timeLabel;
   final String body;
   final String durationLabel;
+  final String? audioUrl;
+  final String transcript;
 }
