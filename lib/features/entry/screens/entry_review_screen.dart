@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../core/services/audio_upload_service.dart';
+import '../../../core/services/streak_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/transcription_service.dart';
 import '../../../core/theme/app_colors.dart';
@@ -327,6 +328,7 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
         'audio_url': storagePath,
         'created_at': DateTime.now().toUtc().toIso8601String(),
       });
+      await const StreakService().updateStreakAfterEntry(user.id);
       if (!mounted) return;
       setState(() => _isSaving = false);
       if (widget.showOnboardingProgress) {

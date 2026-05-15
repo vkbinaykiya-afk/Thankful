@@ -72,7 +72,6 @@ bool _isOnboardingPath(String location) {
   return location == AppRoutes.onboardingOnb1 ||
       location == AppRoutes.onboardingOnb2 ||
       location == AppRoutes.onboardingOnb3 ||
-      location == AppRoutes.onboardingConvo ||
       location == AppRoutes.demo;
 }
 

@@ -119,6 +119,12 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> _todayEntries = [];
   bool _isLoading = true;
+  int _currentStreak = 0;
+  // Fetched for milestone / streak-broken UI (not shown on home yet).
+  // ignore: unused_field
+  int _longestStreak = 0;
+  int _totalEntryCount = 0;
+  Set<DateTime> _loggedDays = {};
 
   final AudioPlayer _audioPlayer = AudioPlayer();
   String? _playingEntryId;
@@ -196,12 +202,27 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  static DateTime _localDateOnly(DateTime d) =>
+      DateTime(d.year, d.month, d.day);
+
+  DateTime _parseEntryCreated(Map<String, dynamic> row) {
+    final raw = row['created_at'];
+    if (raw is String) {
+      return DateTime.parse(raw).toLocal();
+    }
+    return DateTime.now();
+  }
+
   Future<void> _fetchTodayEntries() async {
     if (!SupabaseService.isInitialized) {
       if (mounted) {
         setState(() {
           _isLoading = false;
           _todayEntries = [];
+          _currentStreak = 0;
+          _longestStreak = 0;
+          _totalEntryCount = 0;
+          _loggedDays = {};
         });
       }
       return;
@@ -213,38 +234,101 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           _isLoading = false;
           _todayEntries = [];
+          _currentStreak = 0;
+          _longestStreak = 0;
+          _totalEntryCount = 0;
+          _loggedDays = {};
         });
       }
       return;
     }
 
-    final nowUtc = DateTime.now().toUtc();
-    final startUtc = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day);
+    final today = _localDateOnly(DateTime.now());
+    final weekDays = HomeScreen._weekDaysContaining(DateTime.now());
+    final weekStartLocal = weekDays.first;
+    final weekStartUtc = DateTime(
+      weekStartLocal.year,
+      weekStartLocal.month,
+      weekStartLocal.day,
+    ).toUtc();
 
     try {
-      final response = await Supabase.instance.client
+      final entriesFuture = Supabase.instance.client
           .from('entries')
           .select()
           .eq('user_id', user.id)
-          .gte('created_at', startUtc.toIso8601String())
+          .gte('created_at', weekStartUtc.toIso8601String())
           .order('created_at', ascending: false);
 
-      final list = (response as List<dynamic>)
+      final streakFuture = Supabase.instance.client
+          .from('streaks')
+          .select('current_streak, longest_streak')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+      final countFuture = Supabase.instance.client
+          .from('entries')
+          .select('id')
+          .eq('user_id', user.id)
+          .count(CountOption.exact);
+
+      final results = await Future.wait<dynamic>([
+        entriesFuture,
+        streakFuture,
+        countFuture,
+      ]);
+
+      final list = (results[0] as List<dynamic>)
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
 
+      var currentStreak = 0;
+      var longestStreak = 0;
+      final streakRow = results[1];
+      if (streakRow != null) {
+        final streak = Map<String, dynamic>.from(streakRow as Map);
+        currentStreak = _asInt(streak['current_streak']);
+        longestStreak = _asInt(streak['longest_streak']);
+      }
+
+      final totalCount = (results[2] as PostgrestResponse).count;
+
+      final loggedDays = <DateTime>{};
+      for (final row in list) {
+        final local = _parseEntryCreated(row);
+        loggedDays.add(_localDateOnly(local));
+      }
+
+      final todayEntries = list.where((row) {
+        return _localDateOnly(_parseEntryCreated(row)) == today;
+      }).toList();
+
       if (!mounted) return;
       setState(() {
-        _todayEntries = list;
+        _todayEntries = todayEntries;
+        _currentStreak = currentStreak;
+        _longestStreak = longestStreak;
+        _totalEntryCount = totalCount;
+        _loggedDays = loggedDays;
         _isLoading = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _todayEntries = [];
+        _currentStreak = 0;
+        _longestStreak = 0;
+        _totalEntryCount = 0;
+        _loggedDays = {};
         _isLoading = false;
       });
     }
+  }
+
+  static int _asInt(dynamic v) {
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    return 0;
   }
 
   String _formatEntryTime(DateTime created) {
@@ -306,16 +390,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final today = DateTime.now();
     final weekDays = HomeScreen._weekDaysContaining(today);
 
-    // Demo visibility — replace with streak / entry queries.
-    const streakCount = 7;
-    const totalEntries = 12;
-    final loggedDays = <DateTime>{
-      weekDays[0],
-      weekDays[1],
-      weekDays[3],
-      weekDays[4],
-      weekDays[6],
-    };
+    final streakCount = _currentStreak;
+    final totalEntries = _totalEntryCount;
+    final loggedDays = _loggedDays;
 
     // greeting-label: 11 / w400 / #A89E8E — greeting-date: 19 / w500 / #2C2416
     final greetingSmall = _figtreeStyle(
