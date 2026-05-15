@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/app_routes.dart';
+import 'core/router/go_router_refresh_stream.dart';
 import 'core/services/supabase_service.dart';
 import 'core/theme/app_theme.dart';
 import 'features/account/screens/cancel_confirm_screen.dart';
@@ -57,9 +58,86 @@ Future<void> _awaitSupabaseAuthHydration() async {
   await Future<void>.delayed(const Duration(milliseconds: 300));
 }
 
-GoRouter _thankfulGoRouter({required bool hasSession}) {
+bool _isOnboardingCompleteValue(dynamic value) {
+  if (value == true) return true;
+  if (value is String) {
+    final v = value.trim().toLowerCase();
+    return v == 'true' || v == 't' || v == '1';
+  }
+  if (value is num) return value == 1;
+  return false;
+}
+
+bool _isOnboardingPath(String location) {
+  return location == AppRoutes.onboardingOnb1 ||
+      location == AppRoutes.onboardingOnb2 ||
+      location == AppRoutes.onboardingOnb3 ||
+      location == AppRoutes.onboardingConvo ||
+      location == AppRoutes.demo;
+}
+
+Future<bool> _queryOnboardingComplete(String userId) async {
+  try {
+    final row = Map<String, dynamic>.from(
+      await Supabase.instance.client
+          .from('users')
+          .select('onboarding_complete')
+          .eq('id', userId)
+          .single() as Map,
+    );
+    return _isOnboardingCompleteValue(row['onboarding_complete']);
+  } catch (_) {
+    return false;
+  }
+}
+
+Future<String?> _thankfulAuthRedirect(
+  BuildContext context,
+  GoRouterState state,
+) async {
+  if (!SupabaseService.isInitialized) return null;
+
+  final location = state.matchedLocation;
+  final hasSession =
+      Supabase.instance.client.auth.currentSession != null;
+
+  const publicPaths = {
+    AppRoutes.login,
+    AppRoutes.signup,
+    AppRoutes.launch,
+  };
+
+  if (!hasSession) {
+    if (!publicPaths.contains(location)) {
+      return AppRoutes.login;
+    }
+    return null;
+  }
+
+  final user = Supabase.instance.client.auth.currentUser;
+  if (user == null) return AppRoutes.login;
+
+  final onboardingComplete = await _queryOnboardingComplete(user.id);
+
+  if (onboardingComplete && _isOnboardingPath(location)) {
+    return AppRoutes.home;
+  }
+
+  if (location == AppRoutes.login || location == AppRoutes.signup) {
+    return onboardingComplete ? AppRoutes.home : AppRoutes.onboardingOnb1;
+  }
+
+  return null;
+}
+
+GoRouter _thankfulGoRouter({
+  required String initialLocation,
+  Listenable? refreshListenable,
+}) {
   return GoRouter(
-    initialLocation: hasSession ? AppRoutes.home : AppRoutes.login,
+    initialLocation: initialLocation,
+    refreshListenable: refreshListenable,
+    redirect: _thankfulAuthRedirect,
     routes: [
       GoRoute(path: AppRoutes.launch, builder: (_, _) => const LaunchScreen()),
       GoRoute(path: AppRoutes.signup, builder: (_, _) => const SignupScreen()),
@@ -175,7 +253,7 @@ Future<void> main() async {
   final anonKey =
       (keyDot != null && keyDot.isNotEmpty) ? keyDot : defineKey.trim();
 
-  var hasSessionForRouter = false;
+  var initialLocation = AppRoutes.login;
   if (url.isNotEmpty && anonKey.isNotEmpty) {
     try {
       await Supabase.initialize(
@@ -188,8 +266,35 @@ Future<void> main() async {
       );
       SupabaseService.markInitialized();
       await _awaitSupabaseAuthHydration();
-      final hasSession = Supabase.instance.client.auth.currentSession != null;
-      hasSessionForRouter = hasSession;
+      final hasSession =
+          Supabase.instance.client.auth.currentSession != null;
+      print('hasSession: $hasSession');
+      if (hasSession) {
+        final user = Supabase.instance.client.auth.currentUser;
+        var onboardingComplete = false;
+        Map<String, dynamic>? row;
+        if (user != null) {
+          try {
+            row = Map<String, dynamic>.from(
+              await Supabase.instance.client
+                  .from('users')
+                  .select('onboarding_complete')
+                  .eq('id', user.id)
+                  .single() as Map,
+            );
+            onboardingComplete =
+                _isOnboardingCompleteValue(row['onboarding_complete']);
+          } catch (_) {
+            onboardingComplete = false;
+          }
+        }
+        print('onboardingComplete raw: ${row?['onboarding_complete']}');
+        print('onboardingComplete: $onboardingComplete');
+        initialLocation = onboardingComplete
+            ? AppRoutes.home
+            : AppRoutes.onboardingOnb1;
+        print('initialLocation: $initialLocation');
+      }
     } catch (e, st) {
       if (kDebugMode) {
         debugPrint('Supabase.initialize failed: $e\n$st');
@@ -203,6 +308,15 @@ Future<void> main() async {
     );
   }
 
-  final router = _thankfulGoRouter(hasSession: hasSessionForRouter);
+  final refreshListenable = SupabaseService.isInitialized
+      ? GoRouterRefreshStream(
+          Supabase.instance.client.auth.onAuthStateChange,
+        )
+      : null;
+
+  final router = _thankfulGoRouter(
+    initialLocation: initialLocation,
+    refreshListenable: refreshListenable,
+  );
   runApp(_ThankfulAppRoot(router: router));
 }

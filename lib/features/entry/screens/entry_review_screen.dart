@@ -330,6 +330,10 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
       if (!mounted) return;
       setState(() => _isSaving = false);
       if (widget.showOnboardingProgress) {
+        await Supabase.instance.client
+            .from('users')
+            .update({'onboarding_complete': true}).eq('id', user.id);
+        if (!mounted) return;
         context.go(AppRoutes.paywall, extra: true);
       } else {
         context.go(AppRoutes.home);

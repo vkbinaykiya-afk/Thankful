@@ -3,17 +3,12 @@ import 'package:provider/provider.dart';
 
 import 'controllers/auth_controller.dart';
 
-Future<void> completeGoogleSignIn(
-  BuildContext context, {
-  required VoidCallback onSignedIn,
-}) async {
+/// Signs in with Google; routing is handled by [GoRouter] redirect on auth change.
+Future<void> completeGoogleSignIn(BuildContext context) async {
   final auth = context.read<AuthController>();
   final ok = await auth.signInWithGoogle();
   if (!context.mounted) return;
-  if (ok) {
-    onSignedIn();
-    return;
-  }
+  if (ok) return;
   final err = auth.error;
   if (err != null && err.isNotEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(

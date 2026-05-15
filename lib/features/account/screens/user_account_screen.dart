@@ -50,7 +50,7 @@ class UserAccountScreen extends StatelessWidget {
     if (SupabaseService.isInitialized) {
       await SupabaseService.client.auth.signOut();
     }
-    if (context.mounted) context.go(AppRoutes.launch);
+    if (context.mounted) context.go(AppRoutes.login);
   }
 
   @override
