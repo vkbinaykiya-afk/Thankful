@@ -284,7 +284,7 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     }
 
     setState(() {
-      _fullTranscript += 'User: $text\n\n';
+      _fullTranscript += 'You: $text\n\n';
     });
 
     try {
