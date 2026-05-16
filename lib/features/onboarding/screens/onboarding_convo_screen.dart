@@ -20,6 +20,8 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../entry/entry_review_extra.dart';
 
+enum ConvoState { meditating, listening, speaking }
+
 /// Live journal / conversation UI — matches `docs/reference/design_htmls/convo-screen.html`.
 ///
 /// Voice recording starts on load; stop navigates to entry review with `recordingPath`.
@@ -41,6 +43,9 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
 
   final AudioRecorder _recorder = AudioRecorder();
   final AudioPlayer _lhamoPlayer = AudioPlayer();
+  final AudioPlayer _bgPlayer = AudioPlayer();
+
+  ConvoState _convoState = ConvoState.meditating;
 
   StreamSubscription<RecordState>? _recordStateSub;
   StreamSubscription<Uint8List>? _micSessionSub;
@@ -60,36 +65,17 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
   bool _handlingFinalTranscript = false;
   bool _recorderDisposed = false;
 
-  static const List<double> _barHeights = [
-    9, 16, 22, 24, 15, 12, 21, 18, 24, 14, 20, 10, 21, 15,
-  ];
-
-  static const List<double> _barDelaysSec = [
-    0, 0.14, 0.28, 0.42, 0.56, 0.70, 0.84, 0.98,
-    0.18, 0.36, 0.60, 0.80, 0.46, 0.66,
-  ];
-
   Timer? _timer;
   int _elapsedSeconds = 0;
 
-  late final AnimationController _waveController;
-  late final Animation<double> _waveCurved;
   late final AnimationController _breatheController;
   late final AnimationController _blinkController;
+  late final AnimationController _slowBlinkController;
   late final AnimationController _incenseController;
 
   @override
   void initState() {
     super.initState();
-    _waveController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat();
-    _waveCurved = CurvedAnimation(
-      parent: _waveController,
-      curve: Curves.easeInOut,
-    );
-
     _breatheController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 5),
@@ -98,6 +84,11 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     _blinkController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1400),
+    )..repeat();
+
+    _slowBlinkController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2800),
     )..repeat();
 
     _incenseController = AnimationController(
@@ -134,11 +125,41 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
       unawaited(_recorder.dispose());
     }
     _lhamoPlayer.dispose();
-    _waveController.dispose();
+    unawaited(_bgPlayer.stop());
+    _bgPlayer.dispose();
     _breatheController.dispose();
     _blinkController.dispose();
+    _slowBlinkController.dispose();
     _incenseController.dispose();
     super.dispose();
+  }
+
+  void _syncConvoState() {
+    final next = _lhamoSpeaking
+        ? ConvoState.speaking
+        : (_awaitingUserSpeech && _deepgramSession != null)
+            ? ConvoState.listening
+            : ConvoState.meditating;
+    if (next != _convoState) {
+      _convoState = next;
+    }
+  }
+
+  Future<void> _startBgMusic() async {
+    try {
+      await _bgPlayer.setAsset('assets/audio/Convo_bg_music.mp3');
+      await _bgPlayer.setLoopMode(LoopMode.one);
+      await _bgPlayer.setVolume(0.3);
+      await _bgPlayer.play();
+    } catch (e) {
+      print('Background music failed: $e');
+    }
+  }
+
+  Future<void> _stopBgMusic() async {
+    try {
+      await _bgPlayer.stop();
+    } catch (_) {}
   }
 
   Future<void> _stopUserListenOnly() async {
@@ -149,6 +170,9 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     _deepgramSession = null;
     if (session != null) {
       await session.close();
+    }
+    if (mounted) {
+      setState(_syncConvoState);
     }
   }
 
@@ -171,7 +195,11 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
 
   Future<void> _playCartesiaBytes(Uint8List bytes) async {
     if (!mounted) return;
-    setState(() => _lhamoSpeaking = true);
+    setState(() {
+      _lhamoSpeaking = true;
+      _syncConvoState();
+    });
+    await _bgPlayer.setVolume(0.1);
     final dir = await getTemporaryDirectory();
     final file = File(
       '${dir.path}/lhamo_${DateTime.now().microsecondsSinceEpoch}.mp3',
@@ -188,7 +216,11 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
       );
     } finally {
       if (mounted) {
-        setState(() => _lhamoSpeaking = false);
+        setState(() {
+          _lhamoSpeaking = false;
+          _syncConvoState();
+        });
+        await _bgPlayer.setVolume(0.3);
       }
       try {
         if (await file.exists()) await file.delete();
@@ -197,6 +229,12 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
   }
 
   Future<void> _startSession() async {
+    unawaited(_startBgMusic());
+    if (mounted) {
+      setState(() {
+        _convoState = ConvoState.meditating;
+      });
+    }
     try {
       final opening = await const LhamoService().getResponse(
         history: [],
@@ -211,6 +249,7 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
       setState(() {
         _fullTranscript += 'Lhamo: $opening\n\n';
         _userTurn = true;
+        _syncConvoState();
       });
       print('_userTurn=true after opening (micStreamStarted=$_micStreamStarted)');
       print('Opening done - starting to listen');
@@ -241,12 +280,21 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     if (_sessionEnding || !mounted) return;
 
     _awaitingUserSpeech = true;
+    if (mounted) {
+      setState(_syncConvoState);
+    }
     try {
       _deepgramSession = await const DeepgramService().startLiveSession();
       print('Deepgram live session started');
+      if (mounted) {
+        setState(_syncConvoState);
+      }
     } catch (e, st) {
       print('Deepgram live session failed: $e\n$st');
       _awaitingUserSpeech = false;
+      if (mounted) {
+        setState(_syncConvoState);
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Could not start listening: $e')),
@@ -285,6 +333,7 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
 
     setState(() {
       _fullTranscript += 'You: $text\n\n';
+      _syncConvoState();
     });
 
     try {
@@ -296,6 +345,12 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
 
   Future<void> _getLhamoResponse(String userMessage) async {
     if (_sessionEnding || !mounted) return;
+
+    if (mounted) {
+      setState(() {
+        _convoState = ConvoState.meditating;
+      });
+    }
 
     try {
       final reply = await const LhamoService().getResponse(
@@ -315,6 +370,7 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
       _conversationHistory.add({'role': 'assistant', 'content': reply});
       setState(() {
         _fullTranscript += 'Lhamo: $reply\n\n';
+        _syncConvoState();
       });
 
       _exchangeCount++;
@@ -342,7 +398,12 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     _sessionEnding = true;
     _userTurn = false;
     _awaitingUserSpeech = false;
-    if (mounted) setState(() {});
+    await _stopBgMusic();
+    if (mounted) {
+      setState(() {
+        _convoState = ConvoState.meditating;
+      });
+    }
 
     if (isEarly) {
       print('Session closed early (user stop)');
@@ -536,13 +597,10 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     /// Matches timer `Padding`: `screenTop` + bottom `6` + `heading2` line (19×1.3).
     const timerBlockH = AppSpacing.screenTop + 6.0 + 19.0 * 1.3;
     final monkH = faceWidth * (210 / 527);
-    /// Waveform row + pad below + gap; then monk center = half of monk slot.
-    const waveSlot = 36.0 + 12.0 + 6.0;
+    const vibrationSlot = 16.0 + 48.0 + 16.0;
     const listeningRowH = 24.0;
-    const gapMonkListen = 6.0;
-    final monkCenterFromClusterTop = waveSlot + monkH / 2;
-    final clusterHeight =
-        waveSlot + monkH + gapMonkListen + listeningRowH;
+    final monkCenterFromClusterTop = monkH / 2;
+    final clusterHeight = monkH + vibrationSlot + listeningRowH;
     final monkClusterTopPadRaw = screenH / 2 -
         safeTop -
         timerBlockH -
@@ -585,25 +643,6 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.screenH,
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: AnimatedBuilder(
-                              animation: _waveCurved,
-                              builder: (context, _) {
-                                return _ConvoWaveform(
-                                  waveValue: _waveCurved.value,
-                                  barHeights: _barHeights,
-                                  barDelaysSec: _barDelaysSec,
-                                );
-                              },
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
                         AnimatedBuilder(
                           animation: _breatheController,
                           builder: (context, _) {
@@ -632,32 +671,22 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
                             );
                           },
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 16),
                         Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: AppSpacing.screenH,
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                'Listening',
-                                style: AppTextStyles.body.copyWith(
-                                  color: AppColors.textTertiary,
-                                ),
-                              ),
-                              const SizedBox(width: 3),
-                              ...List.generate(3, (i) {
-                                return Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(horizontal: 1),
-                                  child: _BlinkDot(
-                                    animation: _blinkController,
-                                    delaySec: [0.0, 0.22, 0.44][i],
-                                  ),
-                                );
-                              }),
-                            ],
+                          child: _VibrationString(convoState: _convoState),
+                        ),
+                        const SizedBox(height: 16),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.screenH,
+                          ),
+                          child: _ConvoStateLabel(
+                            state: _convoState,
+                            slowBlink: _slowBlinkController,
+                            fastBlink: _blinkController,
                           ),
                         ),
                       ],
@@ -795,55 +824,222 @@ Uint8List _pcmMono16LeWavBytes(Uint8List pcmData, int sampleRate) {
   return out;
 }
 
-class _ConvoWaveform extends StatelessWidget {
-  const _ConvoWaveform({
-    required this.waveValue,
-    required this.barHeights,
-    required this.barDelaysSec,
+class _WaveMotion {
+  const _WaveMotion({
+    required this.amplitude,
+    required this.harmonics,
+    required this.periodMs,
   });
 
-  final double waveValue;
-  final List<double> barHeights;
-  final List<double> barDelaysSec;
+  final double amplitude;
+  final double harmonics;
+  final int periodMs;
+}
 
-  static const double _periodSec = 2.0;
+_WaveMotion _waveMotionFor(ConvoState state) {
+  switch (state) {
+    case ConvoState.meditating:
+      return const _WaveMotion(amplitude: 6, harmonics: 1, periodMs: 3000);
+    case ConvoState.listening:
+      return const _WaveMotion(amplitude: 10, harmonics: 2, periodMs: 1800);
+    case ConvoState.speaking:
+      return const _WaveMotion(amplitude: 16, harmonics: 3, periodMs: 900);
+  }
+}
+
+class _VibrationString extends StatefulWidget {
+  const _VibrationString({required this.convoState});
+
+  final ConvoState convoState;
+
+  @override
+  State<_VibrationString> createState() => _VibrationStringState();
+}
+
+class _VibrationStringState extends State<_VibrationString>
+    with TickerProviderStateMixin {
+  static const double _height = 48;
+  static const Duration _transitionDuration = Duration(milliseconds: 600);
+
+  late final AnimationController _phaseController;
+  late final AnimationController _transitionController;
+
+  late _WaveMotion _fromMotion;
+  late _WaveMotion _toMotion;
+
+  @override
+  void initState() {
+    super.initState();
+    _toMotion = _waveMotionFor(widget.convoState);
+    _fromMotion = _toMotion;
+    _phaseController = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: _toMotion.periodMs),
+    )..repeat();
+    _transitionController = AnimationController(
+      vsync: this,
+      duration: _transitionDuration,
+    )..value = 1;
+  }
+
+  @override
+  void didUpdateWidget(_VibrationString oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.convoState != widget.convoState) {
+      final t = _transitionController.value.clamp(0.0, 1.0);
+      _fromMotion = _WaveMotion(
+        amplitude: _lerp(_fromMotion.amplitude, _toMotion.amplitude, t),
+        harmonics: _lerp(_fromMotion.harmonics, _toMotion.harmonics, t),
+        periodMs: _toMotion.periodMs,
+      );
+      _toMotion = _waveMotionFor(widget.convoState);
+      _phaseController.duration = Duration(milliseconds: _toMotion.periodMs);
+      _transitionController
+        ..reset()
+        ..forward();
+    }
+  }
+
+  static double _lerp(double a, double b, double t) => a + (b - a) * t;
+
+  @override
+  void dispose() {
+    _phaseController.dispose();
+    _transitionController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 36,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: List.generate(barHeights.length, (i) {
-          final delay = barDelaysSec[i];
-          var phase =
-              (waveValue * _periodSec - delay) % _periodSec / _periodSec;
-          if (phase < 0) phase += 1;
-          final bump = math.sin(phase * math.pi);
-          final scaleY = 0.25 + 0.75 * bump;
-          final opacity = 0.45 + 0.55 * bump;
-          final h = barHeights[i];
+      height: _height,
+      width: double.infinity,
+      child: AnimatedBuilder(
+        animation: Listenable.merge([_phaseController, _transitionController]),
+        builder: (context, _) {
+          final t = Curves.easeInOut.transform(_transitionController.value);
+          final amplitude = _lerp(_fromMotion.amplitude, _toMotion.amplitude, t);
+          final harmonics =
+              _lerp(_fromMotion.harmonics, _toMotion.harmonics, t);
+          final phase = _phaseController.value * 2 * math.pi;
+          return CustomPaint(
+            painter: _VibrationStringPainter(
+              amplitude: amplitude,
+              harmonics: harmonics,
+              phase: phase,
+            ),
+            size: Size.infinite,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _VibrationStringPainter extends CustomPainter {
+  _VibrationStringPainter({
+    required this.amplitude,
+    required this.harmonics,
+    required this.phase,
+  });
+
+  final double amplitude;
+  final double harmonics;
+  final double phase;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path();
+    final midY = size.height / 2;
+    final width = size.width;
+    const steps = 120;
+
+    for (var i = 0; i <= steps; i++) {
+      final x = width * i / steps;
+      final normalized = x / width;
+      final y =
+          midY + amplitude * math.sin(harmonics * math.pi * normalized + phase);
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+
+    final paint = Paint()
+      ..color = AppColors.primary
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round
+      ..isAntiAlias = true;
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_VibrationStringPainter oldDelegate) {
+    return oldDelegate.amplitude != amplitude ||
+        oldDelegate.harmonics != harmonics ||
+        oldDelegate.phase != phase;
+  }
+}
+
+class _ConvoStateLabel extends StatelessWidget {
+  const _ConvoStateLabel({
+    required this.state,
+    required this.slowBlink,
+    required this.fastBlink,
+  });
+
+  final ConvoState state;
+  final Animation<double> slowBlink;
+  final Animation<double> fastBlink;
+
+  String get _label {
+    switch (state) {
+      case ConvoState.meditating:
+        return 'Meditating';
+      case ConvoState.listening:
+        return 'Listening';
+      case ConvoState.speaking:
+        return 'Speaking';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textStyle = AppTextStyles.body.copyWith(
+      color: AppColors.textTertiary,
+    );
+
+    if (state == ConvoState.speaking) {
+      return Text(
+        '$_label...',
+        textAlign: TextAlign.center,
+        style: textStyle,
+      );
+    }
+
+    final blinkAnimation =
+        state == ConvoState.meditating ? slowBlink : fastBlink;
+    final delays = state == ConvoState.meditating
+        ? const [0.0, 0.35, 0.7]
+        : const [0.0, 0.22, 0.44];
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(_label, style: textStyle),
+        const SizedBox(width: 3),
+        ...List.generate(3, (i) {
           return Padding(
-            padding: EdgeInsets.only(left: i == 0 ? 0 : 4.0),
-            child: Opacity(
-              opacity: opacity,
-              child: Transform.scale(
-                alignment: Alignment.bottomCenter,
-                scaleY: scaleY,
-                child: Container(
-                  width: 3,
-                  height: h,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
+            padding: const EdgeInsets.symmetric(horizontal: 1),
+            child: _BlinkDot(
+              animation: blinkAnimation,
+              delaySec: delays[i],
             ),
           );
         }),
-      ),
+      ],
     );
   }
 }
