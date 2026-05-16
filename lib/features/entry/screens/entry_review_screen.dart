@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../core/services/audio_upload_service.dart';
+import '../../../core/services/entry_enrichment_service.dart';
 import '../../../core/services/streak_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/transcription_service.dart';
@@ -63,7 +64,9 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
   StreamSubscription<PlayerState>? _playerStateSub;
 
   String? _transcript;
+  EntryEnrichment? _enrichment;
   bool _isTranscribing = false;
+  bool _isEnriching = false;
   String? _transcriptionError;
   bool _isSaving = false;
 
@@ -105,6 +108,8 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
             _isTranscribing = false;
             _transcriptionError = null;
           });
+          print('Raw transcript for enrichment: $_transcript');
+          await _runEnrichment(_transcript!);
         }
         return;
       }
@@ -115,6 +120,8 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
         _transcript = text;
         _transcriptionError = null;
       });
+      print('Raw transcript for enrichment: $_transcript');
+      await _runEnrichment(text);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -152,6 +159,45 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
     super.dispose();
   }
 
+  Future<void> _runEnrichment(String rawTranscript) async {
+    if (!mounted) return;
+    setState(() => _isEnriching = true);
+    try {
+      final enrichment =
+          await const EntryEnrichmentService().enrich(rawTranscript);
+      if (!mounted) return;
+      setState(() {
+        _enrichment = enrichment;
+        _transcript = enrichment.formattedTranscript;
+        _isEnriching = false;
+      });
+    } catch (e) {
+      developer.log('Enrichment failed: $e', name: 'Thankful.EntryReview');
+      if (!mounted) return;
+      setState(() {
+        _enrichment = EntryEnrichment.quietMomentFallback(rawTranscript);
+        _transcript = rawTranscript;
+        _isEnriching = false;
+      });
+    }
+  }
+
+  TextStyle get _pillTextStyle => AppTextStyles.caption.copyWith(
+        fontSize: 12,
+        color: AppColors.textSecondary,
+      );
+
+  Widget _buildPill(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.full),
+      ),
+      child: Text(label, style: _pillTextStyle),
+    );
+  }
+
   String _metaLine(DateTime d) {
     const months = <String>[
       'Jan',
@@ -167,7 +213,7 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
       'Nov',
       'Dec',
     ];
-    return '${months[d.month - 1]} ${d.day}, ${d.year} · 4 min 12 sec';
+    return '${months[d.month - 1]} ${d.day}, ${d.year}';
   }
 
   String _formatDuration(Duration d) {
@@ -234,6 +280,101 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
     if (mounted) setState(() {});
   }
 
+  static final RegExp _markdownBold = RegExp(r'\*\*(.+?)\*\*');
+
+  TextStyle get _transcriptBodyStyle => AppTextStyles.journal;
+
+  List<InlineSpan> _spansWithMarkdownBold(String content, TextStyle bodyStyle) {
+    final boldStyle = bodyStyle.copyWith(fontWeight: FontWeight.w600);
+    final spans = <InlineSpan>[];
+    var start = 0;
+    for (final match in _markdownBold.allMatches(content)) {
+      if (match.start > start) {
+        spans.add(
+          TextSpan(
+            text: content.substring(start, match.start),
+            style: bodyStyle,
+          ),
+        );
+      }
+      spans.add(TextSpan(text: match.group(1), style: boldStyle));
+      start = match.end;
+    }
+    if (start < content.length) {
+      spans.add(TextSpan(text: content.substring(start), style: bodyStyle));
+    }
+    return spans;
+  }
+
+  TextSpan _transcriptLineSpan(String line) {
+    final trimmed = line.trim();
+    if (trimmed.isEmpty) {
+      return const TextSpan(text: '');
+    }
+
+    const lhamoPrefix = 'Lhamo:';
+    const youPrefix = 'You:';
+
+    if (trimmed.startsWith(lhamoPrefix)) {
+      final content = trimmed.substring(lhamoPrefix.length).trimLeft();
+      return TextSpan(
+        children: [
+          TextSpan(
+            text: lhamoPrefix,
+            style: _transcriptBodyStyle.copyWith(
+              fontWeight: FontWeight.w600,
+              color: AppColors.primary,
+            ),
+          ),
+          if (content.isNotEmpty) ...[
+            const TextSpan(text: ' '),
+            TextSpan(text: content, style: _transcriptBodyStyle),
+          ],
+        ],
+      );
+    }
+
+    if (trimmed.startsWith(youPrefix)) {
+      final content = trimmed.substring(youPrefix.length).trimLeft();
+      return TextSpan(
+        children: [
+          TextSpan(
+            text: youPrefix,
+            style: _transcriptBodyStyle.copyWith(
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          if (content.isNotEmpty) ...[
+            const TextSpan(text: ' '),
+            ..._spansWithMarkdownBold(content, _transcriptBodyStyle),
+          ],
+        ],
+      );
+    }
+
+    return TextSpan(text: line, style: _transcriptBodyStyle);
+  }
+
+  Widget _buildFormattedTranscript(String transcript) {
+    final lines = transcript.split('\n');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < lines.length; i++) ...[
+          if (i > 0) const SizedBox(height: 6),
+          RichText(
+            textDirection: TextDirection.ltr,
+            text: TextSpan(
+              style: _transcriptBodyStyle.copyWith(color: null),
+              children: [_transcriptLineSpan(lines[i])],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   Widget _transcriptArea(bool hasRecording) {
     if (!hasRecording) {
       return Text(
@@ -241,7 +382,7 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
         style: AppTextStyles.journal,
       );
     }
-    if (_isTranscribing) {
+    if (_isTranscribing || _isEnriching) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(AppSpacing.md),
@@ -263,7 +404,7 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
       );
     }
     if (_transcript != null) {
-      return Text(_transcript!, style: AppTextStyles.journal);
+      return _buildFormattedTranscript(_transcript!);
     }
     return Text(
       'Transcription will appear here...',
@@ -283,11 +424,11 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
       return;
     }
 
-    if (_isTranscribing) {
+    if (_isTranscribing || _isEnriching) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please wait for transcription to finish.'),
+          content: Text('Please wait for your entry to finish preparing.'),
         ),
       );
       return;
@@ -324,7 +465,8 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
       );
       await Supabase.instance.client.from('entries').insert(<String, dynamic>{
         'user_id': user.id,
-        'transcript': _transcript ?? '',
+        'transcript':
+            _enrichment?.formattedTranscript ?? _transcript ?? '',
         'audio_url': storagePath,
         'created_at': DateTime.now().toUtc().toIso8601String(),
       });
@@ -393,12 +535,26 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
                         color: AppColors.primary,
                       ),
                     ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      _metaLine(now),
-                      style: AppTextStyles.caption,
-                    ),
-                    const SizedBox(height: AppSpacing.md),
+                    if (_enrichment != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _enrichment!.summary,
+                        style: AppTextStyles.body.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: AppSpacing.xs,
+                        runSpacing: AppSpacing.xs / 2,
+                        children: [
+                          _buildPill(_enrichment!.mood),
+                          for (final tag in _enrichment!.tags)
+                            _buildPill(tag),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 16),
                     // One journal card: playback row + transcript (HTML `.card`).
                     Container(
                       height: 204,
@@ -467,6 +623,13 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
                         ],
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _metaLine(now),
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
                     const Spacer(),
                   ],
                 ),
@@ -485,7 +648,7 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
                   PrimaryButton(
                     label: 'Save entry',
                     isLoading: _isSaving,
-                    onPressed: (_isSaving || _isTranscribing)
+                    onPressed: (_isSaving || _isTranscribing || _isEnriching)
                         ? null
                         : () => unawaited(_onSaveEntry()),
                   ),
