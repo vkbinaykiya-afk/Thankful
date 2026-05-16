@@ -18,6 +18,7 @@ import '../../../core/services/lhamo_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../shared/widgets/primary_button.dart';
 import '../../entry/entry_review_extra.dart';
 
 enum ConvoState { meditating, listening, speaking }
@@ -60,6 +61,7 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
   String _fullTranscript = '';
 
   bool _sessionEnding = false;
+  bool _closingLineSpoken = false;
   bool _awaitingUserSpeech = false;
   bool _micStreamStarted = false;
   bool _handlingFinalTranscript = false;
@@ -374,7 +376,7 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
       });
 
       _exchangeCount++;
-      if (_exchangeCount >= 5) {
+      if (_exchangeCount >= 3) {
         await _closeSession();
         return;
       } else {
@@ -393,41 +395,7 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     }
   }
 
-  Future<void> _closeSession({bool isEarly = false}) async {
-    print('_closeSession called isEarly=$isEarly sessionEnding=$_sessionEnding');
-    _sessionEnding = true;
-    _userTurn = false;
-    _awaitingUserSpeech = false;
-    await _stopBgMusic();
-    if (mounted) {
-      setState(() {
-        _convoState = ConvoState.meditating;
-      });
-    }
-
-    if (isEarly) {
-      print('Session closed early (user stop)');
-    }
-    await _stopUserListenOnly();
-
-    try {
-      final closing = await const LhamoService().getResponse(
-        history: List<Map<String, String>>.from(_conversationHistory),
-        userMessage: '',
-        exchangeCount: _exchangeCount,
-        isClosing: true,
-      );
-      final bytes = await const CartesiaService().speak(closing);
-      if (mounted) {
-        await _playCartesiaBytes(bytes);
-        setState(() {
-          _fullTranscript += 'Lhamo: $closing\n\n';
-        });
-      }
-    } catch (e) {
-      print('Closing line failed: $e');
-    }
-
+  Future<void> _stopRecording() async {
     await _stopMicStreamSubscription();
     try {
       await _recorder.stop();
@@ -446,7 +414,9 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
         print('Recorder dispose failed: $e');
       }
     }
+  }
 
+  Future<void> _navigateToEntryReview() async {
     final path = await _writeSessionWavFile();
     if (!mounted) return;
     if (path == null || path.isEmpty) {
@@ -456,7 +426,7 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
       return;
     }
 
-    print('Navigating to entry review');
+    print('Auto-close navigating to entry review');
     context.go(
       AppRoutes.entryReview,
       extra: EntryReviewExtra(
@@ -465,6 +435,52 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
         transcript: _fullTranscript,
       ),
     );
+  }
+
+  Future<void> _closeSession({bool isEarly = false}) async {
+    final wasAlreadyEnding = _sessionEnding;
+    _sessionEnding = true;
+    if (wasAlreadyEnding) return;
+
+    print('_closeSession called isEarly=$isEarly');
+    _userTurn = false;
+    _awaitingUserSpeech = false;
+    await _stopBgMusic();
+    if (mounted) {
+      setState(() {
+        _convoState = ConvoState.meditating;
+      });
+    }
+
+    if (isEarly) {
+      print('Session closed early (user stop)');
+    }
+    await _stopUserListenOnly();
+
+    if (!_closingLineSpoken) {
+      try {
+        final closing = await const LhamoService().getResponse(
+          history: List<Map<String, String>>.from(_conversationHistory),
+          userMessage: '',
+          exchangeCount: _exchangeCount,
+          isClosing: true,
+        );
+        final closingAudio = await const CartesiaService().speak(closing);
+        if (mounted) {
+          await _playCartesiaBytes(closingAudio);
+          _closingLineSpoken = true;
+          setState(() {
+            _fullTranscript += 'Lhamo: $closing\n\n';
+          });
+        }
+      } catch (e) {
+        print('Closing line failed: $e');
+      }
+    }
+
+    print('Closing line spoken, navigating');
+    await _stopRecording();
+    await _navigateToEntryReview();
   }
 
   Future<bool> _canStartRecording() async {
@@ -567,11 +583,10 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
   }
 
   Future<void> _onStopTapped() async {
-    print('_onStopTapped (sessionEnding=$_sessionEnding mic=$_micStreamStarted)');
+    if (_sessionEnding) return;
+    print('_onStopTapped (mic=$_micStreamStarted)');
     await _closeSession(isEarly: true);
   }
-
-  bool get _canTapStop => !_sessionEnding;
 
   String _formatTimer(int totalSeconds) {
     final m = totalSeconds ~/ 60;
@@ -586,9 +601,6 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     /// Locked crop in `Monk_Convo.svg`; zoom to full width (HTML monk uses full phone width).
     final faceWidth = screenW;
 
-    /// HTML `.stop-btn` is 44×44. Burner PNGs include transparent margin around the pot — use a
-    /// larger slot than the stop so the visible art reads closer to the control size.
-    const stopExtent = 44.0;
     const incenseExtent = 150.0;
 
     final media = MediaQuery.of(context);
@@ -732,44 +744,18 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
                 ),
               ),
             ),
-            const SizedBox(height: AppSpacing.xs),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Center(
-                child: Material(
-                  color: _canTapStop ? AppColors.cta : AppColors.surface,
-                  shape: const CircleBorder(),
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: _canTapStop ? _onStopTapped : null,
-                    customBorder: const CircleBorder(),
-                    child: Ink(
-                      width: stopExtent,
-                      height: stopExtent,
-                      child: const Center(
-                        child: _StopIcon(),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
             Padding(
               padding: EdgeInsets.fromLTRB(
                 AppSpacing.screenH,
-                6,
+                AppSpacing.sm,
                 AppSpacing.screenH,
                 bottomInset + AppSpacing.screenBot,
               ),
-              child: Center(
-                child: Container(
-                  width: 56,
-                  height: 3,
-                  decoration: BoxDecoration(
-                    color: AppColors.textPrimary.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
+              child: PrimaryButton(
+                label: "I'm done for today",
+                onPressed: _sessionEnding
+                    ? null
+                    : () => unawaited(_onStopTapped()),
               ),
             ),
           ],
@@ -1088,25 +1074,3 @@ class _BlinkDot extends StatelessWidget {
   }
 }
 
-/// HTML stop control: 44×44 circle; inner icon 18×18 with 10×10 rounded square at 4,4.
-class _StopIcon extends StatelessWidget {
-  const _StopIcon();
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 18,
-      height: 18,
-      child: Center(
-        child: Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: AppColors.textSecondary,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-      ),
-    );
-  }
-}
