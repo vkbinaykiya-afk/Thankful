@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
+import '../../../core/utils/entry_row_parser.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -106,7 +107,9 @@ class _JournalListingScreenState extends State<JournalListingScreen> {
     try {
       final response = await Supabase.instance.client
           .from('entries')
-          .select()
+          .select(
+            'id, transcript, summary, tags, mood, created_at, audio_url',
+          )
           .eq('user_id', user.id)
           .order('created_at', ascending: false);
 
@@ -158,20 +161,18 @@ class _JournalListingScreenState extends State<JournalListingScreen> {
 
   _JournalEntry _mapRowToJournalEntry(Map<String, dynamic> row) {
     final created = _parseCreated(row);
-    final transcript = row['transcript']?.toString() ?? '';
-    final body = transcript.length > 120
-        ? transcript.substring(0, 120)
-        : transcript;
+    final transcript = parseEntryString(row['transcript']) ?? '';
     final audioRaw = row['audio_url'];
     return _JournalEntry(
       id: row['id']?.toString() ?? '',
       timeLabel: _formatEntryTime(created),
-      body: body,
-      durationLabel: '',
+      summary: parseEntryString(row['summary']),
+      tags: parseEntryTags(row['tags']),
+      mood: parseEntryString(row['mood']),
+      formattedTranscript: transcript,
       audioUrl: audioRaw != null && audioRaw.toString().trim().isNotEmpty
           ? audioRaw.toString()
           : null,
-      transcript: transcript,
     );
   }
 
@@ -260,15 +261,17 @@ class _JournalListingScreenState extends State<JournalListingScreen> {
     final hasAudio = entry.audioUrl != null;
     return JournalEntryCard(
       timeLabel: entry.timeLabel,
-      body: entry.body,
-      durationLabel: entry.durationLabel,
+      summary: entry.summary,
+      tags: entry.tags,
+      mood: entry.mood,
+      formattedTranscript: entry.formattedTranscript,
       isPlaying: hasAudio && _playingEntryId == entry.id,
       onPlay: hasAudio
           ? () => unawaited(_togglePlay(entry.id, entry.audioUrl!))
           : null,
       onShare: () => unawaited(
             Share.share(
-              entry.transcript,
+              entry.formattedTranscript,
               sharePositionOrigin: Rect.fromLTWH(0, 0, 100, 100),
             ),
           ),
@@ -395,16 +398,18 @@ class _JournalEntry {
   const _JournalEntry({
     required this.id,
     required this.timeLabel,
-    required this.body,
-    required this.durationLabel,
+    this.summary,
+    this.tags = const [],
+    this.mood,
+    required this.formattedTranscript,
     this.audioUrl,
-    required this.transcript,
   });
 
   final String id;
   final String timeLabel;
-  final String body;
-  final String durationLabel;
+  final String? summary;
+  final List<String> tags;
+  final String? mood;
+  final String formattedTranscript;
   final String? audioUrl;
-  final String transcript;
 }

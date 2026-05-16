@@ -17,6 +17,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../shared/widgets/formatted_transcript.dart';
 import '../../../shared/widgets/onboarding_progress_bar.dart';
 import '../../../shared/widgets/primary_button.dart';
 import '../../../shared/widgets/secondary_button.dart';
@@ -280,101 +281,6 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
     if (mounted) setState(() {});
   }
 
-  static final RegExp _markdownBold = RegExp(r'\*\*(.+?)\*\*');
-
-  TextStyle get _transcriptBodyStyle => AppTextStyles.journal;
-
-  List<InlineSpan> _spansWithMarkdownBold(String content, TextStyle bodyStyle) {
-    final boldStyle = bodyStyle.copyWith(fontWeight: FontWeight.w600);
-    final spans = <InlineSpan>[];
-    var start = 0;
-    for (final match in _markdownBold.allMatches(content)) {
-      if (match.start > start) {
-        spans.add(
-          TextSpan(
-            text: content.substring(start, match.start),
-            style: bodyStyle,
-          ),
-        );
-      }
-      spans.add(TextSpan(text: match.group(1), style: boldStyle));
-      start = match.end;
-    }
-    if (start < content.length) {
-      spans.add(TextSpan(text: content.substring(start), style: bodyStyle));
-    }
-    return spans;
-  }
-
-  TextSpan _transcriptLineSpan(String line) {
-    final trimmed = line.trim();
-    if (trimmed.isEmpty) {
-      return const TextSpan(text: '');
-    }
-
-    const lhamoPrefix = 'Lhamo:';
-    const youPrefix = 'You:';
-
-    if (trimmed.startsWith(lhamoPrefix)) {
-      final content = trimmed.substring(lhamoPrefix.length).trimLeft();
-      return TextSpan(
-        children: [
-          TextSpan(
-            text: lhamoPrefix,
-            style: _transcriptBodyStyle.copyWith(
-              fontWeight: FontWeight.w600,
-              color: AppColors.primary,
-            ),
-          ),
-          if (content.isNotEmpty) ...[
-            const TextSpan(text: ' '),
-            TextSpan(text: content, style: _transcriptBodyStyle),
-          ],
-        ],
-      );
-    }
-
-    if (trimmed.startsWith(youPrefix)) {
-      final content = trimmed.substring(youPrefix.length).trimLeft();
-      return TextSpan(
-        children: [
-          TextSpan(
-            text: youPrefix,
-            style: _transcriptBodyStyle.copyWith(
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          if (content.isNotEmpty) ...[
-            const TextSpan(text: ' '),
-            ..._spansWithMarkdownBold(content, _transcriptBodyStyle),
-          ],
-        ],
-      );
-    }
-
-    return TextSpan(text: line, style: _transcriptBodyStyle);
-  }
-
-  Widget _buildFormattedTranscript(String transcript) {
-    final lines = transcript.split('\n');
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (var i = 0; i < lines.length; i++) ...[
-          if (i > 0) const SizedBox(height: 6),
-          RichText(
-            textDirection: TextDirection.ltr,
-            text: TextSpan(
-              style: _transcriptBodyStyle.copyWith(color: null),
-              children: [_transcriptLineSpan(lines[i])],
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
   Widget _transcriptArea(bool hasRecording) {
     if (!hasRecording) {
       return Text(
@@ -404,7 +310,7 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
       );
     }
     if (_transcript != null) {
-      return _buildFormattedTranscript(_transcript!);
+      return FormattedTranscript(transcript: _transcript!);
     }
     return Text(
       'Transcription will appear here...',
@@ -469,6 +375,10 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
             _enrichment?.formattedTranscript ?? _transcript ?? '',
         'audio_url': storagePath,
         'created_at': DateTime.now().toUtc().toIso8601String(),
+        'summary': _enrichment?.summary,
+        'tags': _enrichment?.tags,
+        'mood': _enrichment?.mood,
+        'highlight_quote': _enrichment?.highlightQuote,
       });
       await const StreakService().updateStreakAfterEntry(user.id);
       if (!mounted) return;

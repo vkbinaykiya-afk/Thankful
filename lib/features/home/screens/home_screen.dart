@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/utils/entry_row_parser.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -29,8 +30,14 @@ class HomeScreen extends StatefulWidget {
 
   static const double _monkBottomPx = 18;
 
-  /// CSS `.entries-zone` — `height: 130px`; gap between cards **6px** (DS).
-  static const double _entriesZoneHeight = 130;
+  /// Visible monk art above screen bottom (1.5× display width, waist crop).
+  static const double _monkVisibleHeight = 220;
+
+  /// Space between the CTA and the monk illustration.
+  static const double _ctaMonkGap = AppSpacing.lg;
+
+  static double _collapsedBottomInset() =>
+      _monkBottomPx + _monkVisibleHeight + _ctaMonkGap;
 
   static const List<String> _weekdayNames = [
     'Monday',
@@ -128,6 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final AudioPlayer _audioPlayer = AudioPlayer();
   String? _playingEntryId;
+  String? _expandedEntryId;
   StreamSubscription<PlayerState>? _playerStateSub;
 
   @override
@@ -255,7 +263,9 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final entriesFuture = Supabase.instance.client
           .from('entries')
-          .select()
+          .select(
+            'id, transcript, summary, tags, mood, created_at, audio_url',
+          )
           .eq('user_id', user.id)
           .gte('created_at', weekStartUtc.toIso8601String())
           .order('created_at', ascending: false);
@@ -341,35 +351,32 @@ class _HomeScreenState extends State<HomeScreen> {
     return '$h:${m.toString().padLeft(2, '0')} $period';
   }
 
-  _HomeJournalSnippet _mapEntryToSnippet(Map<String, dynamic> row) {
-    final createdRaw = row['created_at'];
+  Widget _buildTodayEntryCard(Map<String, dynamic> entry) {
+    final createdRaw = entry['created_at'];
     DateTime created;
     if (createdRaw is String) {
       created = DateTime.parse(createdRaw);
     } else {
       created = DateTime.now();
     }
-    final transcript = row['transcript']?.toString() ?? '';
-    final body = transcript.length > 120
-        ? transcript.substring(0, 120)
-        : transcript;
-    return _HomeJournalSnippet(
-      timeLabel: _formatEntryTime(created),
-      body: body,
-      durationLabel: '',
-    );
-  }
-
-  Widget _buildTodayEntryCard(Map<String, dynamic> entry) {
-    final snippet = _mapEntryToSnippet(entry);
     final entryId = entry['id']?.toString() ?? '';
     final audioRaw = entry['audio_url'];
     final hasAudio =
         audioRaw != null && audioRaw.toString().trim().isNotEmpty;
+    final transcript = parseEntryString(entry['transcript']) ?? '';
     return JournalEntryCard(
-      timeLabel: snippet.timeLabel,
-      body: snippet.body,
-      durationLabel: snippet.durationLabel,
+      timeLabel: _formatEntryTime(created),
+      summary: parseEntryString(entry['summary']),
+      tags: parseEntryTags(entry['tags']),
+      mood: parseEntryString(entry['mood']),
+      formattedTranscript: transcript,
+      expandToFill: true,
+      isExpanded: _expandedEntryId == entryId,
+      onExpandedChanged: (expanded) {
+        setState(() {
+          _expandedEntryId = expanded ? entryId : null;
+        });
+      },
       isPlaying: hasAudio && _playingEntryId == entryId,
       onPlay: hasAudio
           ? () => unawaited(
@@ -378,10 +385,73 @@ class _HomeScreenState extends State<HomeScreen> {
           : null,
       onShare: () => unawaited(
             Share.share(
-              entry['transcript'] ?? '',
+              transcript,
               sharePositionOrigin: Rect.fromLTWH(0, 0, 100, 100),
             ),
           ),
+    );
+  }
+
+  Widget _makeAnotherEntryCta() {
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.md),
+      child: PrimaryButton(
+        label: 'Make another entry',
+        onPressed: () => context.go(AppRoutes.onboardingConvo),
+      ),
+    );
+  }
+
+  Widget _buildEntriesZone(BoxConstraints constraints) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_todayEntries.isEmpty) {
+      return Center(
+        child: Text(
+          'No entries today yet',
+          style: AppTextStyles.caption.copyWith(
+            color: AppColors.textTertiary,
+          ),
+        ),
+      );
+    }
+
+    final hasExpandedEntry = _expandedEntryId != null;
+    final zoneHeight = constraints.maxHeight;
+
+    return Stack(
+      clipBehavior: hasExpandedEntry ? Clip.none : Clip.hardEdge,
+      children: [
+        if (hasExpandedEntry)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: _makeAnotherEntryCta(),
+          ),
+        ListView.separated(
+          padding: EdgeInsets.zero,
+          physics: const ClampingScrollPhysics(),
+          itemCount: _todayEntries.length,
+          separatorBuilder: (context, index) =>
+              SizedBox(height: AppSpacing.xs),
+          itemBuilder: (context, index) {
+            final entry = _todayEntries[index];
+            final entryId = entry['id']?.toString() ?? '';
+            final card = _buildTodayEntryCard(entry);
+
+            if (hasExpandedEntry && _expandedEntryId == entryId) {
+              return SizedBox(
+                height: zoneHeight,
+                child: card,
+              );
+            }
+            return card;
+          },
+        ),
+      ],
     );
   }
 
@@ -455,187 +525,142 @@ class _HomeScreenState extends State<HomeScreen> {
               child: _HomeMonkEntrance(width: HomeScreen._monkDisplayWidth),
             ),
           ),
-          // Layer 2 — SafeArea + scrollable column (screen8: padding 12 top, 22 horizontal).
+          // Layer 2 — header fixed; entries zone scrolls above CTA; expands over CTA+monk.
           Positioned.fill(
             child: SafeArea(
+              bottom: _expandedEntryId == null,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(
+                padding: EdgeInsets.fromLTRB(
                   AppSpacing.screenH,
                   AppSpacing.screenTop,
                   AppSpacing.screenH,
-                  0,
+                  _expandedEntryId == null
+                      ? HomeScreen._collapsedBottomInset()
+                      : 0,
                 ),
-                child: SingleChildScrollView(
-                  physics: const ClampingScrollPhysics(),
-                  clipBehavior: Clip.hardEdge,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // 1. Greeting row — baseline align date + avatar per mock.
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(HomeScreen._greetingPhrase(), style: greetingSmall),
-                          SizedBox(height: AppSpacing.xs),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.baseline,
-                            textBaseline: TextBaseline.alphabetic,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  HomeScreen._formatGreetingDate(today),
-                                  style: dateLarge,
-                                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // 1. Greeting row
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(HomeScreen._greetingPhrase(), style: greetingSmall),
+                        SizedBox(height: AppSpacing.xs),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                HomeScreen._formatGreetingDate(today),
+                                style: dateLarge,
                               ),
-                              Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  onTap: () =>
-                                      context.push(AppRoutes.account),
-                                  borderRadius: BorderRadius.circular(15),
-                                  child: Container(
-                                    width: 30,
-                                    height: 30,
-                                    alignment: Alignment.center,
-                                    decoration: const BoxDecoration(
-                                      color: AppColors.surface,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Text(
-                                      HomeScreen._avatarLetter(),
-                                      style: _figtreeStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w500,
-                                        height: 1,
-                                        color: AppColors.textSecondary,
-                                      ),
+                            ),
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () =>
+                                    context.push(AppRoutes.account),
+                                borderRadius: BorderRadius.circular(15),
+                                child: Container(
+                                  width: 30,
+                                  height: 30,
+                                  alignment: Alignment.center,
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.surface,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Text(
+                                    HomeScreen._avatarLetter(),
+                                    style: _figtreeStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      height: 1,
+                                      color: AppColors.textSecondary,
                                     ),
                                   ),
                                 ),
                               ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: AppSpacing.sm),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: AppSpacing.sm),
 
-                      // 2. Stat cards
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _StatCard(
-                              value: '$streakCount',
-                              label: 'day streak',
-                              valueStyle: statNumberStreak,
-                              labelStyle: statLabel,
+                    // 2. Stat cards
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _StatCard(
+                            value: '$streakCount',
+                            label: 'day streak',
+                            valueStyle: statNumberStreak,
+                            labelStyle: statLabel,
+                          ),
+                        ),
+                        SizedBox(width: AppSpacing.xs),
+                        Expanded(
+                          child: _StatCard(
+                            value: '$totalEntries',
+                            label: 'total entries',
+                            valueStyle: statNumberEntries,
+                            labelStyle: statLabel,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: AppSpacing.sm),
+
+                    // 3. Calendar strip
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        for (var i = 0; i < 7; i++)
+                          _CalendarDayColumn(
+                            letter: HomeScreen._calendarLetter(
+                              weekDays[i].weekday,
+                            ),
+                            dayNum: weekDays[i].day,
+                            logged: loggedDays.any(
+                              (d) =>
+                                  d.year == weekDays[i].year &&
+                                  d.month == weekDays[i].month &&
+                                  d.day == weekDays[i].day,
                             ),
                           ),
-                          SizedBox(width: AppSpacing.xs),
-                          Expanded(
-                            child: _StatCard(
-                              value: '$totalEntries',
-                              label: 'total entries',
-                              valueStyle: statNumberEntries,
-                              labelStyle: statLabel,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: AppSpacing.sm),
+                      ],
+                    ),
+                    SizedBox(height: AppSpacing.sm),
 
-                      // 3. Calendar strip
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          for (var i = 0; i < 7; i++)
-                            _CalendarDayColumn(
-                              letter: HomeScreen._calendarLetter(
-                                weekDays[i].weekday,
-                              ),
-                              dayNum: weekDays[i].day,
-                              logged: loggedDays.any(
-                                (d) =>
-                                    d.year == weekDays[i].year &&
-                                    d.month == weekDays[i].month &&
-                                    d.day == weekDays[i].day,
-                              ),
-                            ),
-                        ],
-                      ),
-                      SizedBox(height: AppSpacing.sm),
-
-                      // 4. Section row
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Today', style: sectionStyle),
-                          GestureDetector(
-                            onTap: () =>
-                                context.push(AppRoutes.journalListing),
-                            child: Text('View all', style: viewAllStyle),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: AppSpacing.xs),
-
-                      // 5. Entries zone (fixed height; inner scroll)
-                      SizedBox(
-                        height: HomeScreen._entriesZoneHeight,
-                        child: ScrollConfiguration(
-                          behavior: ScrollConfiguration.of(context).copyWith(
-                            scrollbars: false,
-                          ),
-                          child: _isLoading
-                              ? const Center(
-                                  child: CircularProgressIndicator(),
-                                )
-                              : _todayEntries.isEmpty
-                                  ? Center(
-                                      child: Text(
-                                        'No entries today yet',
-                                        style: AppTextStyles.caption.copyWith(
-                                          color: AppColors.textTertiary,
-                                        ),
-                                      ),
-                                    )
-                                  : SingleChildScrollView(
-                                      physics: const ClampingScrollPhysics(),
-                                      clipBehavior: Clip.hardEdge,
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.stretch,
-                                        children: [
-                                          for (var i = 0;
-                                              i < _todayEntries.length;
-                                              i++) ...[
-                                            if (i > 0)
-                                              SizedBox(height: AppSpacing.xs),
-                                            _buildTodayEntryCard(
-                                              _todayEntries[i],
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                    ),
+                    // 4. Section row
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Today', style: sectionStyle),
+                        GestureDetector(
+                          onTap: () =>
+                              context.push(AppRoutes.journalListing),
+                          child: Text('View all', style: viewAllStyle),
                         ),
-                      ),
+                      ],
+                    ),
+                    SizedBox(height: AppSpacing.xs),
 
-                      // 6. CTA — margin-top 18px; margin-bottom 24px (last in column).
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          top: AppSpacing.md,
-                          bottom: AppSpacing.screenBot,
-                        ),
-                        child: PrimaryButton(
-                          label: 'Make another entry',
-                          onPressed: () =>
-                              context.go(AppRoutes.onboardingConvo),
-                        ),
+                    // 5. Entries zone — bounded above CTA; full height when expanded.
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) =>
+                            _buildEntriesZone(constraints),
                       ),
-                    ],
-                  ),
+                    ),
+
+                    // 6. CTA — visible only when all entries collapsed.
+                    if (_expandedEntryId == null) _makeAnotherEntryCta(),
+                  ],
                 ),
               ),
             ),
@@ -706,18 +731,6 @@ class _HomeMonkEntranceState extends State<_HomeMonkEntrance>
       ),
     );
   }
-}
-
-class _HomeJournalSnippet {
-  const _HomeJournalSnippet({
-    required this.timeLabel,
-    required this.body,
-    required this.durationLabel,
-  });
-
-  final String timeLabel;
-  final String body;
-  final String durationLabel;
 }
 
 TextStyle _figtreeStyle({
