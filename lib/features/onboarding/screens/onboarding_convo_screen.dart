@@ -60,6 +60,10 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
   bool _userTurn = false;
   String _fullTranscript = '';
 
+  /// Mic / STT stopped; closing line not started yet (CTA still tappable).
+  bool _windingDown = false;
+
+  /// Set when closing TTS starts — disables the primary CTA.
   bool _sessionEnding = false;
   bool _closingLineSpoken = false;
   bool _awaitingUserSpeech = false;
@@ -180,7 +184,7 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
 
   /// iOS often suspends the record stream after TTS playback — restart before listen.
   Future<void> _restartMicStreamForUserTurn() async {
-    if (_recorderDisposed || _sessionEnding) return;
+    if (_recorderDisposed || _windingDown || _sessionEnding) return;
     await _micSessionSub?.cancel();
     _micSessionSub = null;
     if (_micStreamStarted) {
@@ -267,19 +271,20 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
   }
 
   Future<void> _beginListeningForUser() async {
-    if (_sessionEnding || !mounted || !_userTurn) {
+    if (_windingDown || _sessionEnding || !mounted || !_userTurn) {
       print(
-        '_beginListeningForUser skipped: ending=$_sessionEnding '
+        '_beginListeningForUser skipped: windingDown=$_windingDown '
+        'ending=$_sessionEnding '
         'mounted=$mounted userTurn=$_userTurn',
       );
       return;
     }
     print('_beginListeningForUser starting (micStreamStarted=$_micStreamStarted)');
     await _stopUserListenOnly();
-    if (_sessionEnding || !mounted) return;
+    if (_windingDown || _sessionEnding || !mounted) return;
 
     await _restartMicStreamForUserTurn();
-    if (_sessionEnding || !mounted) return;
+    if (_windingDown || _sessionEnding || !mounted) return;
 
     _awaitingUserSpeech = true;
     if (mounted) {
@@ -309,7 +314,9 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
       (text) {
         print('Deepgram transcript: $text');
         final t = text.trim();
-        if (t.isEmpty || _sessionEnding || !_awaitingUserSpeech) return;
+        if (t.isEmpty || _windingDown || _sessionEnding || !_awaitingUserSpeech) {
+          return;
+        }
         unawaited(_onUserFinalTranscript(t));
       },
       onError: (Object e, StackTrace st) {
@@ -321,7 +328,10 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
   }
 
   Future<void> _onUserFinalTranscript(String text) async {
-    if (_handlingFinalTranscript || _sessionEnding || !_awaitingUserSpeech) {
+    if (_handlingFinalTranscript ||
+        _windingDown ||
+        _sessionEnding ||
+        !_awaitingUserSpeech) {
       return;
     }
     _handlingFinalTranscript = true;
@@ -346,7 +356,7 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
   }
 
   Future<void> _getLhamoResponse(String userMessage) async {
-    if (_sessionEnding || !mounted) return;
+    if (_windingDown || _sessionEnding || !mounted) return;
 
     if (mounted) {
       setState(() {
@@ -377,7 +387,7 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
 
       _exchangeCount++;
       if (_exchangeCount >= 3) {
-        await _closeSession();
+        await _windDownAndClose();
         return;
       } else {
         _userTurn = true;
@@ -437,12 +447,11 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     );
   }
 
-  Future<void> _closeSession({bool isEarly = false}) async {
-    final wasAlreadyEnding = _sessionEnding;
-    _sessionEnding = true;
-    if (wasAlreadyEnding) return;
+  Future<void> _windDownAndClose({bool isEarly = false}) async {
+    if (_windingDown) return;
+    _windingDown = true;
 
-    print('_closeSession called isEarly=$isEarly');
+    print('_windDownAndClose called isEarly=$isEarly');
     _userTurn = false;
     _awaitingUserSpeech = false;
     await _stopBgMusic();
@@ -467,6 +476,9 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
         );
         final closingAudio = await const CartesiaService().speak(closing);
         if (mounted) {
+          setState(() => _sessionEnding = true);
+        }
+        if (mounted) {
           await _playCartesiaBytes(closingAudio);
           _closingLineSpoken = true;
           setState(() {
@@ -475,7 +487,12 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
         }
       } catch (e) {
         print('Closing line failed: $e');
+        if (mounted) {
+          setState(() => _sessionEnding = true);
+        }
       }
+    } else if (mounted) {
+      setState(() => _sessionEnding = true);
     }
 
     print('Closing line spoken, navigating');
@@ -513,7 +530,7 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
   }
 
   Future<void> _startRecording() async {
-    if (_micStreamStarted || _sessionEnding) return;
+    if (_micStreamStarted || _windingDown || _sessionEnding) return;
 
     if (!await _canStartRecording()) return;
 
@@ -528,7 +545,7 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
 
       _micSessionSub = stream.listen(
         (chunk) {
-          if (_sessionEnding) return;
+          if (_windingDown || _sessionEnding) return;
           if (!_lhamoSpeaking) {
             _sessionPcm.add(chunk);
           }
@@ -583,9 +600,9 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
   }
 
   Future<void> _onStopTapped() async {
-    if (_sessionEnding) return;
+    if (_windingDown || _sessionEnding) return;
     print('_onStopTapped (mic=$_micStreamStarted)');
-    await _closeSession(isEarly: true);
+    await _windDownAndClose(isEarly: true);
   }
 
   String _formatTimer(int totalSeconds) {
