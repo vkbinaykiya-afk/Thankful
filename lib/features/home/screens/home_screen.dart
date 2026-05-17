@@ -6,10 +6,10 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../core/services/share_card_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/entry_row_parser.dart';
 import '../../../core/theme/app_colors.dart';
@@ -132,6 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _longestStreak = 0;
   int _totalEntryCount = 0;
   Set<DateTime> _loggedDays = {};
+  String _currentUserName = 'Someone';
 
   final AudioPlayer _audioPlayer = AudioPlayer();
   String? _playingEntryId;
@@ -251,6 +252,9 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
+    _currentUserName =
+        user.userMetadata?['name']?.toString() ?? 'Someone';
+
     final today = _localDateOnly(DateTime.now());
     final weekDays = HomeScreen._weekDaysContaining(DateTime.now());
     final weekStartLocal = weekDays.first;
@@ -264,7 +268,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final entriesFuture = Supabase.instance.client
           .from('entries')
           .select(
-            'id, transcript, summary, tags, mood, created_at, audio_url',
+            'id, transcript, summary, tags, mood, highlight_quote, created_at, audio_url',
           )
           .eq('user_id', user.id)
           .gte('created_at', weekStartUtc.toIso8601String())
@@ -352,13 +356,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildTodayEntryCard(Map<String, dynamic> entry) {
-    final createdRaw = entry['created_at'];
-    DateTime created;
-    if (createdRaw is String) {
-      created = DateTime.parse(createdRaw);
-    } else {
-      created = DateTime.now();
-    }
+    final created = _parseEntryCreated(entry);
     final entryId = entry['id']?.toString() ?? '';
     final audioRaw = entry['audio_url'];
     final hasAudio =
@@ -384,8 +382,14 @@ class _HomeScreenState extends State<HomeScreen> {
               )
           : null,
       onShare: () => unawaited(
-            Share.share(
-              transcript,
+            const ShareCardService().shareEntry(
+              context: context,
+              highlightQuote: entry['highlight_quote']?.toString(),
+              summary: parseEntryString(entry['summary']),
+              tags: parseEntryTags(entry['tags']),
+              mood: parseEntryString(entry['mood']),
+              userName: _currentUserName,
+              createdAt: created,
               sharePositionOrigin: Rect.fromLTWH(0, 0, 100, 100),
             ),
           ),

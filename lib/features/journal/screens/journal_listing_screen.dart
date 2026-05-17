@@ -6,9 +6,9 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/services/share_card_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/entry_row_parser.dart';
 import '../../../core/theme/app_colors.dart';
@@ -27,6 +27,7 @@ class JournalListingScreen extends StatefulWidget {
 class _JournalListingScreenState extends State<JournalListingScreen> {
   List<_JournalDateGroup> _groups = [];
   bool _isLoading = true;
+  String _currentUserName = 'Someone';
 
   final AudioPlayer _audioPlayer = AudioPlayer();
   String? _playingEntryId;
@@ -60,6 +61,10 @@ class _JournalListingScreenState extends State<JournalListingScreen> {
   @override
   void initState() {
     super.initState();
+    _currentUserName = Supabase.instance.client.auth.currentUser
+            ?.userMetadata?['name']
+            ?.toString() ??
+        'Someone';
     _playerStateSub = _audioPlayer.playerStateStream.listen((state) {
       if (state.processingState == ProcessingState.completed ||
           state.processingState == ProcessingState.idle) {
@@ -108,7 +113,7 @@ class _JournalListingScreenState extends State<JournalListingScreen> {
       final response = await Supabase.instance.client
           .from('entries')
           .select(
-            'id, transcript, summary, tags, mood, created_at, audio_url',
+            'id, transcript, summary, tags, mood, highlight_quote, created_at, audio_url',
           )
           .eq('user_id', user.id)
           .order('created_at', ascending: false);
@@ -169,6 +174,8 @@ class _JournalListingScreenState extends State<JournalListingScreen> {
       summary: parseEntryString(row['summary']),
       tags: parseEntryTags(row['tags']),
       mood: parseEntryString(row['mood']),
+      highlightQuote: parseEntryString(row['highlight_quote']),
+      createdAt: created,
       formattedTranscript: transcript,
       audioUrl: audioRaw != null && audioRaw.toString().trim().isNotEmpty
           ? audioRaw.toString()
@@ -270,8 +277,14 @@ class _JournalListingScreenState extends State<JournalListingScreen> {
           ? () => unawaited(_togglePlay(entry.id, entry.audioUrl!))
           : null,
       onShare: () => unawaited(
-            Share.share(
-              entry.formattedTranscript,
+            const ShareCardService().shareEntry(
+              context: context,
+              highlightQuote: entry.highlightQuote,
+              summary: entry.summary,
+              tags: entry.tags,
+              mood: entry.mood,
+              userName: _currentUserName,
+              createdAt: entry.createdAt,
               sharePositionOrigin: Rect.fromLTWH(0, 0, 100, 100),
             ),
           ),
@@ -401,6 +414,8 @@ class _JournalEntry {
     this.summary,
     this.tags = const [],
     this.mood,
+    this.highlightQuote,
+    required this.createdAt,
     required this.formattedTranscript,
     this.audioUrl,
   });
@@ -410,6 +425,8 @@ class _JournalEntry {
   final String? summary;
   final List<String> tags;
   final String? mood;
+  final String? highlightQuote;
+  final DateTime createdAt;
   final String formattedTranscript;
   final String? audioUrl;
 }
