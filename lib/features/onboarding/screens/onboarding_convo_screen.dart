@@ -611,7 +611,8 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
         sessionId: DateTime.now().millisecondsSinceEpoch.toString(),
         rawTranscript: _fullTranscript,
         exchangeCount: _exchangeCount,
-        completedNaturally: !isEarly && _exchangeCount >= 3, // false if early exit
+        completedNaturally: !isEarly &&
+            _exchangeCount >= ConvoSessionConfig.userTurnsBeforeClose,
         highlightQuote: null,
       ),
     );

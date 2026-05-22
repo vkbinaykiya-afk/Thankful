@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../constants/feature_flags.dart';
 import 'supabase_service.dart';
 
 /// Uploads local audio to Supabase Storage (`Journal-audio-files` bucket).
@@ -16,6 +17,12 @@ class AudioUploadService {
   /// Throws [ArgumentError] for invalid inputs, [StateError] for missing Supabase
   /// config or failed upload.
   Future<String> uploadAudio(String filePath, String userId) async {
+    if (!FeatureFlags.entryAudioPlayback) {
+      throw StateError(
+        'Audio upload is disabled (FeatureFlags.entryAudioPlayback).',
+      );
+    }
+
     final uid = userId.trim();
     if (uid.isEmpty) {
       throw ArgumentError.value(

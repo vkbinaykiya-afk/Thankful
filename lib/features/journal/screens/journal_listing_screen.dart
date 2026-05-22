@@ -8,6 +8,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/constants/feature_flags.dart';
 import '../../../core/services/share_card_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/entry_row_parser.dart';
@@ -29,7 +30,7 @@ class _JournalListingScreenState extends State<JournalListingScreen> {
   bool _isLoading = true;
   String _currentUserName = 'Someone';
 
-  final AudioPlayer _audioPlayer = AudioPlayer();
+  AudioPlayer? _audioPlayer;
   String? _playingEntryId;
   StreamSubscription<PlayerState>? _playerStateSub;
 
@@ -65,14 +66,18 @@ class _JournalListingScreenState extends State<JournalListingScreen> {
             ?.userMetadata?['name']
             ?.toString() ??
         'Someone';
-    _playerStateSub = _audioPlayer.playerStateStream.listen((state) {
-      if (state.processingState == ProcessingState.completed ||
-          state.processingState == ProcessingState.idle) {
-        if (mounted) {
-          setState(() => _playingEntryId = null);
+    if (FeatureFlags.entryAudioPlayback) {
+      final player = AudioPlayer();
+      _audioPlayer = player;
+      _playerStateSub = player.playerStateStream.listen((state) {
+        if (state.processingState == ProcessingState.completed ||
+            state.processingState == ProcessingState.idle) {
+          if (mounted) {
+            setState(() => _playingEntryId = null);
+          }
         }
-      }
-    });
+      });
+    }
     unawaited(_fetchEntries());
   }
 
@@ -83,7 +88,7 @@ class _JournalListingScreenState extends State<JournalListingScreen> {
     if (sub != null) {
       unawaited(sub.cancel());
     }
-    _audioPlayer.dispose();
+    _audioPlayer?.dispose();
     super.dispose();
   }
 
@@ -222,14 +227,18 @@ class _JournalListingScreenState extends State<JournalListingScreen> {
   }
 
   Future<void> _togglePlay(String entryId, String audioPath) async {
+    if (!FeatureFlags.entryAudioPlayback) return;
+    final player = _audioPlayer;
+    if (player == null) return;
+
     if (_playingEntryId == entryId) {
-      await _audioPlayer.pause();
+      await player.pause();
       if (mounted) setState(() => _playingEntryId = null);
       return;
     }
 
     try {
-      await _audioPlayer.stop();
+      await player.stop();
       final signedUrl = await Supabase.instance.client.storage
           .from('Journal-audio-files')
           .createSignedUrl(audioPath, 3600);
@@ -246,14 +255,14 @@ class _JournalListingScreenState extends State<JournalListingScreen> {
       final cacheFile = File('${dir.path}/journal_play_${entryId}_$safeName');
       await cacheFile.writeAsBytes(response.bodyBytes);
 
-      await _audioPlayer.setAudioSource(
+      await player.setAudioSource(
         AudioSource.file(cacheFile.path),
         preload: true,
       );
       if (mounted) {
         setState(() => _playingEntryId = entryId);
       }
-      unawaited(_audioPlayer.play());
+      unawaited(player.play());
     } catch (e) {
       if (mounted) {
         setState(() => _playingEntryId = null);
@@ -272,8 +281,10 @@ class _JournalListingScreenState extends State<JournalListingScreen> {
       tags: entry.tags,
       mood: entry.mood,
       formattedTranscript: entry.formattedTranscript,
-      isPlaying: hasAudio && _playingEntryId == entry.id,
-      onPlay: hasAudio
+      isPlaying: FeatureFlags.entryAudioPlayback &&
+          hasAudio &&
+          _playingEntryId == entry.id,
+      onPlay: FeatureFlags.entryAudioPlayback && hasAudio
           ? () => unawaited(_togglePlay(entry.id, entry.audioUrl!))
           : null,
       onShare: () => unawaited(

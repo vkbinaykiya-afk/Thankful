@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../core/constants/feature_flags.dart';
 import '../../../core/services/share_card_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/entry_row_parser.dart';
@@ -134,7 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Set<DateTime> _loggedDays = {};
   String _currentUserName = 'Someone';
 
-  final AudioPlayer _audioPlayer = AudioPlayer();
+  AudioPlayer? _audioPlayer;
   String? _playingEntryId;
   String? _expandedEntryId;
   StreamSubscription<PlayerState>? _playerStateSub;
@@ -142,16 +143,20 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _playerStateSub = _audioPlayer.playerStateStream.listen((state) {
-      if (state.processingState == ProcessingState.completed ||
-          state.processingState == ProcessingState.idle) {
-        if (mounted) {
-          setState(() {
-            _playingEntryId = null;
-          });
+    if (FeatureFlags.entryAudioPlayback) {
+      final player = AudioPlayer();
+      _audioPlayer = player;
+      _playerStateSub = player.playerStateStream.listen((state) {
+        if (state.processingState == ProcessingState.completed ||
+            state.processingState == ProcessingState.idle) {
+          if (mounted) {
+            setState(() {
+              _playingEntryId = null;
+            });
+          }
         }
-      }
-    });
+      });
+    }
     unawaited(_fetchTodayEntries());
   }
 
@@ -162,19 +167,22 @@ class _HomeScreenState extends State<HomeScreen> {
     if (sub != null) {
       unawaited(sub.cancel());
     }
-    _audioPlayer.dispose();
+    _audioPlayer?.dispose();
     super.dispose();
   }
 
   Future<void> _togglePlay(String entryId, String audioPath) async {
+    if (!FeatureFlags.entryAudioPlayback) return;
+    final player = _audioPlayer;
+    if (player == null) return;
     if (_playingEntryId == entryId) {
-      await _audioPlayer.pause();
+      await player.pause();
       if (mounted) setState(() => _playingEntryId = null);
       return;
     }
 
     try {
-      await _audioPlayer.stop();
+      await player.stop();
       final signedUrl = await Supabase.instance.client.storage
           .from('Journal-audio-files')
           .createSignedUrl(audioPath, 3600);
@@ -191,7 +199,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final cacheFile = File('${dir.path}/home_play_${entryId}_$safeName');
       await cacheFile.writeAsBytes(response.bodyBytes);
 
-      await _audioPlayer.setAudioSource(
+      await player.setAudioSource(
         AudioSource.file(cacheFile.path),
         preload: true,
       );
@@ -200,7 +208,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _playingEntryId = entryId;
         });
       }
-      unawaited(_audioPlayer.play());
+      unawaited(player.play());
     } catch (e) {
       if (mounted) {
         setState(() => _playingEntryId = null);
@@ -375,8 +383,10 @@ class _HomeScreenState extends State<HomeScreen> {
           _expandedEntryId = expanded ? entryId : null;
         });
       },
-      isPlaying: hasAudio && _playingEntryId == entryId,
-      onPlay: hasAudio
+      isPlaying: FeatureFlags.entryAudioPlayback &&
+          hasAudio &&
+          _playingEntryId == entryId,
+      onPlay: FeatureFlags.entryAudioPlayback && hasAudio
           ? () => unawaited(
                 _togglePlay(entryId, audioRaw.toString()),
               )
