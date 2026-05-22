@@ -12,6 +12,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/monk_mascot.dart';
 import '../../../shared/widgets/oauth_continue_button.dart';
 import '../../../shared/widgets/thankful_app_title.dart';
+import '../apple_auth_helpers.dart';
 import '../controllers/auth_controller.dart';
 import '../google_auth_helpers.dart';
 
@@ -192,9 +193,15 @@ class _SignupScreenState extends State<SignupScreen>
                     style: AppTextStyles.caption,
                   ),
                   const SizedBox(height: AppSpacing.lg),
-                  OAuthContinueButton(
-                    kind: OAuthContinueKind.apple,
-                    onPressed: () {},
+                  Consumer<AuthController>(
+                    builder: (context, auth, _) {
+                      return OAuthContinueButton(
+                        kind: OAuthContinueKind.apple,
+                        onPressed: auth.isLoading
+                            ? null
+                            : () => completeAppleSignIn(context),
+                      );
+                    },
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Consumer<AuthController>(
