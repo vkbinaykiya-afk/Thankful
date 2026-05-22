@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/onboarding/onboarding_progress_visibility.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -37,6 +38,8 @@ class PaywallScreen extends StatefulWidget {
 class _PaywallScreenState extends State<PaywallScreen> {
   static const _carouselWords = ['Gratitude', 'Meditation', 'Journalling'];
 
+  bool _showOnboardingProgress = false;
+
   late final PageController _carouselController;
   Timer? _carouselTimer;
   int _carouselIndex = 0;
@@ -47,6 +50,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
   @override
   void initState() {
     super.initState();
+    unawaited(_resolveOnboardingProgress());
     _carouselController = PageController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _carouselTimer = Timer.periodic(const Duration(seconds: 3), (_) {
@@ -60,6 +64,15 @@ class _PaywallScreenState extends State<PaywallScreen> {
           curve: Curves.easeInOutCubic,
         );
       });
+    });
+  }
+
+  Future<void> _resolveOnboardingProgress() async {
+    final fromDb = await OnboardingProgressVisibility.shouldShowProgressStrip();
+    if (!mounted) return;
+    setState(() {
+      _showOnboardingProgress =
+          widget.showOnboardingProgress && fromDb;
     });
   }
 
@@ -107,7 +120,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                           letterSpacing: 0.01 * 18,
                         ),
                       ),
-                      if (widget.showOnboardingProgress) ...[
+                      if (_showOnboardingProgress) ...[
                         const SizedBox(height: AppSpacing.xs),
                         OnboardingProgressBar(
                           totalSteps: PaywallScreen.totalSteps,

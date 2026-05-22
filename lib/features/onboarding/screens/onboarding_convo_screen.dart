@@ -12,13 +12,18 @@ import 'package:path_provider/path_provider.dart'
 import 'package:record/record.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../core/constants/convo_session_config.dart';
+import '../../../core/onboarding/onboarding_progress_visibility.dart';
 import '../../../core/services/cartesia_service.dart';
+import '../../../core/services/conversation_eval_service.dart';
 import '../../../core/services/deepgram_service.dart';
 import '../../../core/services/lhamo_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../shared/widgets/onboarding_progress_bar.dart';
 import '../../../shared/widgets/primary_button.dart';
+import '../../../shared/widgets/thankful_app_title.dart';
 import '../../entry/entry_review_extra.dart';
 
 enum ConvoState { meditating, listening, speaking }
@@ -41,6 +46,11 @@ class OnboardingConvoScreen extends StatefulWidget {
 class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     with TickerProviderStateMixin {
   static const int _pcmSampleRate = 16000;
+  static const int _onboardingTotalSteps = 6;
+  static const int _onboardingCurrentStep = 5;
+  static const Color _dotIdle = Color(0xFFD8D2CA);
+
+  bool _showOnboardingProgress = false;
 
   final AudioRecorder _recorder = AudioRecorder();
   final AudioPlayer _lhamoPlayer = AudioPlayer();
@@ -50,8 +60,12 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
 
   StreamSubscription<RecordState>? _recordStateSub;
   StreamSubscription<Uint8List>? _micSessionSub;
-  StreamSubscription<String>? _dgSub;
+  StreamSubscription<DeepgramListenEvent>? _dgSub;
   DeepgramLiveSession? _deepgramSession;
+
+  static const Duration _transcriptDebounceDelay = Duration(milliseconds: 800);
+  Timer? _transcriptDebounceTimer;
+  String _pendingUserTranscript = '';
 
   final BytesBuilder _sessionPcm = BytesBuilder(copy: false);
   final List<Map<String, String>> _conversationHistory = [];
@@ -82,6 +96,7 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
   @override
   void initState() {
     super.initState();
+    unawaited(_resolveOnboardingProgress());
     _breatheController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 5),
@@ -116,9 +131,16 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     });
   }
 
+  Future<void> _resolveOnboardingProgress() async {
+    final show = await OnboardingProgressVisibility.shouldShowProgressStrip();
+    if (!mounted) return;
+    setState(() => _showOnboardingProgress = show);
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
+    _cancelTranscriptDebounce();
     unawaited(_recordStateSub?.cancel());
     unawaited(_micSessionSub?.cancel());
     unawaited(_dgSub?.cancel());
@@ -168,8 +190,57 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     } catch (_) {}
   }
 
+  void _cancelTranscriptDebounce() {
+    _transcriptDebounceTimer?.cancel();
+    _transcriptDebounceTimer = null;
+    _pendingUserTranscript = '';
+  }
+
+  static String _mergeTranscript(String existing, String segment) {
+    final e = existing.trim();
+    final s = segment.trim();
+    if (e.isEmpty) return s;
+    if (s.isEmpty) return e;
+    if (s.startsWith(e)) return s;
+    if (e.endsWith(s) || e.contains(s)) return e;
+    return '$e $s';
+  }
+
+  void _onDeepgramListenEvent(DeepgramListenEvent event) {
+    if (_windingDown || _sessionEnding || !_awaitingUserSpeech) return;
+
+    if (!event.isUtteranceEnd) {
+      _pendingUserTranscript =
+          _mergeTranscript(_pendingUserTranscript, event.text);
+      _transcriptDebounceTimer?.cancel();
+      _transcriptDebounceTimer = null;
+      print('Deepgram segment final (pending): $_pendingUserTranscript');
+      return;
+    }
+
+    final utterance = event.text.trim();
+    if (utterance.isNotEmpty) {
+      _pendingUserTranscript = utterance;
+    }
+    print('Deepgram utterance end — debouncing: $_pendingUserTranscript');
+    _scheduleTranscriptDebounce();
+  }
+
+  void _scheduleTranscriptDebounce() {
+    _transcriptDebounceTimer?.cancel();
+    _transcriptDebounceTimer = Timer(_transcriptDebounceDelay, () {
+      _transcriptDebounceTimer = null;
+      if (_windingDown || _sessionEnding || !_awaitingUserSpeech) return;
+      final text = _pendingUserTranscript.trim();
+      _pendingUserTranscript = '';
+      if (text.isEmpty) return;
+      unawaited(_onUserFinalTranscript(text));
+    });
+  }
+
   Future<void> _stopUserListenOnly() async {
     _awaitingUserSpeech = false;
+    _cancelTranscriptDebounce();
     await _dgSub?.cancel();
     _dgSub = null;
     final session = _deepgramSession;
@@ -242,12 +313,7 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
       });
     }
     try {
-      final opening = await const LhamoService().getResponse(
-        history: [],
-        userMessage: '',
-        exchangeCount: 0,
-        isClosing: false,
-      );
+      final opening = const LhamoService().getSessionOpening();
       final audio = await const CartesiaService().speak(opening);
       if (!mounted) return;
       await _playCartesiaBytes(audio);
@@ -280,6 +346,7 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
       return;
     }
     print('_beginListeningForUser starting (micStreamStarted=$_micStreamStarted)');
+    _cancelTranscriptDebounce();
     await _stopUserListenOnly();
     if (_windingDown || _sessionEnding || !mounted) return;
 
@@ -310,15 +377,8 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
       return;
     }
 
-    _dgSub = _deepgramSession!.transcriptStream.listen(
-      (text) {
-        print('Deepgram transcript: $text');
-        final t = text.trim();
-        if (t.isEmpty || _windingDown || _sessionEnding || !_awaitingUserSpeech) {
-          return;
-        }
-        unawaited(_onUserFinalTranscript(t));
-      },
+    _dgSub = _deepgramSession!.listenStream.listen(
+      _onDeepgramListenEvent,
       onError: (Object e, StackTrace st) {
         print('Deepgram error: $e\n$st');
       },
@@ -364,6 +424,9 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
       });
     }
 
+    final isLastExchange =
+        _exchangeCount >= ConvoSessionConfig.finalTurnExchangeCount;
+
     try {
       final reply = await const LhamoService().getResponse(
         history: List<Map<String, String>>.from(_conversationHistory),
@@ -373,21 +436,33 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
       );
 
       _conversationHistory.add({'role': 'user', 'content': userMessage});
-
-      final audio = await const CartesiaService().speak(reply);
-      if (!mounted) return;
-      await _playCartesiaBytes(audio);
-      if (!mounted) return;
-
       _conversationHistory.add({'role': 'assistant', 'content': reply});
+
+      _exchangeCount++;
+
+      final reflectionAudioFuture = const CartesiaService().speak(reply);
+      Future<({String text, Uint8List audio})>? closingPrefetch;
+      if (isLastExchange) {
+        unawaited(_stopBgMusic());
+        unawaited(_stopUserListenOnly());
+        closingPrefetch = _prepareClosingLine();
+      }
+
+      final reflectionAudio = await reflectionAudioFuture;
+      if (!mounted) return;
+
       setState(() {
         _fullTranscript += 'Lhamo: $reply\n\n';
         _syncConvoState();
       });
 
-      _exchangeCount++;
-      if (_exchangeCount >= 3) {
-        await _windDownAndClose();
+      await _playCartesiaBytes(reflectionAudio);
+      if (!mounted) return;
+
+      if (isLastExchange) {
+        final prepared = await closingPrefetch!;
+        if (!mounted) return;
+        await _windDownAndClose(prefetchedClosing: prepared);
         return;
       } else {
         _userTurn = true;
@@ -426,6 +501,18 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     }
   }
 
+  /// Fetches closing copy + TTS while the final reflection plays.
+  Future<({String text, Uint8List audio})> _prepareClosingLine() async {
+    final closing = await const LhamoService().getResponse(
+      history: List<Map<String, String>>.from(_conversationHistory),
+      userMessage: '',
+      exchangeCount: _exchangeCount,
+      isClosing: true,
+    );
+    final audio = await const CartesiaService().speak(closing);
+    return (text: closing, audio: audio);
+  }
+
   Future<void> _navigateToEntryReview() async {
     final path = await _writeSessionWavFile();
     if (!mounted) return;
@@ -437,24 +524,32 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     }
 
     print('Auto-close navigating to entry review');
+    final showProgress =
+        await OnboardingProgressVisibility.shouldShowProgressStrip();
+    if (!mounted) return;
     context.go(
       AppRoutes.entryReview,
       extra: EntryReviewExtra(
-        showOnboardingProgress: true,
+        showOnboardingProgress: showProgress,
         recordingPath: path,
         transcript: _fullTranscript,
       ),
     );
   }
 
-  Future<void> _windDownAndClose({bool isEarly = false}) async {
+  Future<void> _windDownAndClose({
+    bool isEarly = false,
+    ({String text, Uint8List audio})? prefetchedClosing,
+  }) async {
     if (_windingDown) return;
     _windingDown = true;
 
     print('_windDownAndClose called isEarly=$isEarly');
     _userTurn = false;
     _awaitingUserSpeech = false;
-    await _stopBgMusic();
+    if (prefetchedClosing == null) {
+      await _stopBgMusic();
+    }
     if (mounted) {
       setState(() {
         _convoState = ConvoState.meditating;
@@ -464,31 +559,46 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     if (isEarly) {
       print('Session closed early (user stop)');
     }
-    await _stopUserListenOnly();
+    if (prefetchedClosing == null) {
+      await _stopUserListenOnly();
+    }
 
     if (!_closingLineSpoken) {
-      try {
-        final closing = await const LhamoService().getResponse(
-          history: List<Map<String, String>>.from(_conversationHistory),
-          userMessage: '',
-          exchangeCount: _exchangeCount,
-          isClosing: true,
-        );
-        final closingAudio = await const CartesiaService().speak(closing);
+      if (prefetchedClosing != null) {
         if (mounted) {
           setState(() => _sessionEnding = true);
         }
         if (mounted) {
-          await _playCartesiaBytes(closingAudio);
+          await _playCartesiaBytes(prefetchedClosing.audio);
           _closingLineSpoken = true;
           setState(() {
-            _fullTranscript += 'Lhamo: $closing\n\n';
+            _fullTranscript += 'Lhamo: ${prefetchedClosing.text}\n\n';
           });
         }
-      } catch (e) {
-        print('Closing line failed: $e');
-        if (mounted) {
-          setState(() => _sessionEnding = true);
+      } else {
+        try {
+          final closing = await const LhamoService().getResponse(
+            history: List<Map<String, String>>.from(_conversationHistory),
+            userMessage: '',
+            exchangeCount: _exchangeCount,
+            isClosing: true,
+          );
+          final closingAudio = await const CartesiaService().speak(closing);
+          if (mounted) {
+            setState(() => _sessionEnding = true);
+          }
+          if (mounted) {
+            await _playCartesiaBytes(closingAudio);
+            _closingLineSpoken = true;
+            setState(() {
+              _fullTranscript += 'Lhamo: $closing\n\n';
+            });
+          }
+        } catch (e) {
+          print('Closing line failed: $e');
+          if (mounted) {
+            setState(() => _sessionEnding = true);
+          }
         }
       }
     } else if (mounted) {
@@ -496,6 +606,16 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     }
 
     print('Closing line spoken, navigating');
+    unawaited(
+      const ConversationEvalService().evaluate(
+        sessionId: DateTime.now().millisecondsSinceEpoch.toString(),
+        rawTranscript: _fullTranscript,
+        exchangeCount: _exchangeCount,
+        completedNaturally: !isEarly && _exchangeCount >= 3, // false if early exit
+        highlightQuote: null,
+      ),
+    );
+    print('[Eval] Post-session eval dispatched (non-blocking)');
     await _stopRecording();
     await _navigateToEntryReview();
   }
@@ -642,10 +762,29 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (_showOnboardingProgress) ...[
+              const Padding(
+                padding: EdgeInsets.fromLTRB(
+                  AppSpacing.screenH,
+                  5,
+                  AppSpacing.screenH,
+                  0,
+                ),
+                child: ThankfulAppTitle(),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              const OnboardingProgressBar(
+                totalSteps: _onboardingTotalSteps,
+                currentStep: _onboardingCurrentStep,
+                gap: 4,
+                inactiveColor: _dotIdle,
+              ),
+              const SizedBox(height: AppSpacing.xs),
+            ],
             Padding(
-              padding: const EdgeInsets.fromLTRB(
+              padding: EdgeInsets.fromLTRB(
                 AppSpacing.screenH,
-                AppSpacing.screenTop,
+                _showOnboardingProgress ? 0 : AppSpacing.screenTop,
                 AppSpacing.screenH,
                 6,
               ),

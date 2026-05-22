@@ -40,6 +40,10 @@ post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
+      # Xcode 26+ explicit modules break many CocoaPods Swift plugins.
+      config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'
+      config.build_settings['CLANG_ENABLE_EXPLICIT_MODULES'] = 'NO'
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
       # permission_handler_apple: enable only permissions the app uses (see
       # https://github.com/Baseflow/flutter-permission-handler/blob/main/permission_handler_apple/ios/Classes/PermissionHandlerEnums.h).
       defs = config.build_settings['GCC_PREPROCESSOR_DEFINITIONS']
@@ -54,5 +58,9 @@ post_install do |installer|
         config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] = [defs, mic]
       end
     end
+  end
+  installer.pods_project.build_configurations.each do |config|
+    config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'
+    config.build_settings['CLANG_ENABLE_EXPLICIT_MODULES'] = 'NO'
   end
 end

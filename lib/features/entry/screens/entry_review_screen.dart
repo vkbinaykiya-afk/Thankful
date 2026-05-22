@@ -8,6 +8,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../core/onboarding/onboarding_progress_visibility.dart';
 import '../../../core/services/audio_upload_service.dart';
 import '../../../core/services/entry_enrichment_service.dart';
 import '../../../core/services/streak_service.dart';
@@ -70,10 +71,12 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
   bool _isEnriching = false;
   String? _transcriptionError;
   bool _isSaving = false;
+  bool _showOnboardingProgress = false;
 
   @override
   void initState() {
     super.initState();
+    unawaited(_resolveOnboardingProgress());
     if (widget.initialTranscript != null &&
         widget.initialTranscript!.trim().isNotEmpty) {
       _transcript = widget.initialTranscript;
@@ -84,6 +87,12 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_loadAudioSourceThenTranscribe());
     });
+  }
+
+  Future<void> _resolveOnboardingProgress() async {
+    final show = await OnboardingProgressVisibility.shouldShowProgressStrip();
+    if (!mounted) return;
+    setState(() => _showOnboardingProgress = show);
   }
 
   Future<void> _loadAudioSourceThenTranscribe() async {
@@ -383,7 +392,7 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
       await const StreakService().updateStreakAfterEntry(user.id);
       if (!mounted) return;
       setState(() => _isSaving = false);
-      if (widget.showOnboardingProgress) {
+      if (_showOnboardingProgress) {
         await Supabase.instance.client
             .from('users')
             .update({'onboarding_complete': true}).eq('id', user.id);
@@ -426,7 +435,7 @@ class _EntryReviewScreenState extends State<EntryReviewScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (widget.showOnboardingProgress) ...[
+                    if (_showOnboardingProgress) ...[
                       const ThankfulAppTitle(),
                       const SizedBox(height: AppSpacing.xs),
                       OnboardingProgressBar(
