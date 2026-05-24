@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../core/services/subscription_service.dart';
+import '../../../core/services/subscription_service.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
@@ -145,7 +149,12 @@ class _Onb3ScreenState extends State<Onb3Screen>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   GestureDetector(
-                    onTap: () => context.go(AppRoutes.onboardingConvo),
+                    onTap: () => unawaited(
+                      SubscriptionService.navigateToSessionOrPaywall(
+                        context,
+                        paywallOnboardingProgress: true,
+                      ),
+                    ),
                     child: Container(
                       height: 48,
                       alignment: Alignment.center,

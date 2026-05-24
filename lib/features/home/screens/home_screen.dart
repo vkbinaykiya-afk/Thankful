@@ -422,19 +422,9 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           PrimaryButton(
             label: 'Make another entry',
-            onPressed: () async {
-              final canStart =
-                  await const SubscriptionService().canStartSession();
-              if (!mounted) return;
-              if (!canStart) {
-                print(
-                  '[Subscription] Home CTA blocked — redirecting to paywall',
-                );
-                context.go(AppRoutes.paywall);
-                return;
-              }
-              context.go(AppRoutes.onboardingConvo);
-            },
+            onPressed: () => unawaited(
+              SubscriptionService.navigateToSessionOrPaywall(context),
+            ),
           ),
           if (_sessionsRemaining != null &&
               _sessionsRemaining! <= 2 &&

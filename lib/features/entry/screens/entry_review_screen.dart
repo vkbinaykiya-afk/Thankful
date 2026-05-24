@@ -13,6 +13,7 @@ import '../../../core/onboarding/onboarding_progress_visibility.dart';
 import '../../../core/services/audio_upload_service.dart';
 import '../../../core/services/entry_enrichment_service.dart';
 import '../../../core/services/streak_service.dart';
+import '../../../core/services/subscription_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/transcription_service.dart';
 import '../../../core/theme/app_colors.dart';
@@ -729,7 +730,11 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
                     label: 'Start over',
                     onPressed: isLoading
                         ? null
-                        : () => context.go(AppRoutes.onboardingConvo),
+                        : () => unawaited(
+                              SubscriptionService.navigateToSessionOrPaywall(
+                                context,
+                              ),
+                            ),
                   ),
                 ],
               ),

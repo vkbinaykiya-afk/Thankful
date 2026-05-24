@@ -129,11 +129,11 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
-        // Gate check — paywall before session starts
+        // Gate check — paywall before session starts (also checked before navigation)
         final canStart = await const SubscriptionService().canStartSession();
         if (!mounted) return;
         if (!canStart) {
-          print('[Subscription] Session limit reached — redirecting to paywall');
+          print('[Subscription] Convo gate blocked — redirecting to paywall');
           context.go(AppRoutes.paywall);
           return;
         }

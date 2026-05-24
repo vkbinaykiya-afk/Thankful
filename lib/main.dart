@@ -6,10 +6,12 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/app_routes.dart';
 import 'core/router/go_router_refresh_stream.dart';
+import 'core/services/subscription_service.dart';
 import 'core/services/supabase_service.dart';
 import 'core/theme/app_theme.dart';
 import 'features/account/screens/cancel_confirm_screen.dart';
@@ -305,6 +307,26 @@ Future<void> main() async {
       'and not passed as --dart-define. Keys loaded: '
       '${dotenv.isInitialized ? dotenv.env.length : 0}',
     );
+  }
+
+  await SubscriptionService.initialise();
+
+  if (SupabaseService.isInitialized) {
+    Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
+      try {
+        if (data.event == AuthChangeEvent.signedIn &&
+            data.session?.user.id != null) {
+          final userId = data.session!.user.id;
+          await Purchases.logIn(userId);
+          print('[RevenueCat] Logged in user: $userId');
+        } else if (data.event == AuthChangeEvent.signedOut) {
+          await Purchases.logOut();
+          print('[RevenueCat] Logged out');
+        }
+      } catch (e) {
+        print('[RevenueCat] Auth state listener error: $e');
+      }
+    });
   }
 
   final refreshListenable = SupabaseService.isInitialized

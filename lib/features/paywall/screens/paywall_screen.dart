@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../core/services/subscription_service.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/onboarding/onboarding_progress_visibility.dart';
 import '../../../core/theme/app_colors.dart';
@@ -44,13 +46,23 @@ class _PaywallScreenState extends State<PaywallScreen> {
   Timer? _carouselTimer;
   int _carouselIndex = 0;
 
-  /// `0` monthly, `1` annual (default), `2` lifetime — HTML pre-selects annual.
+  /// `0` monthly, `1` annual (default).
   int _selectedPlan = 1;
+
+  bool _isLoadingOffering = true;
+  bool _isPurchasing = false;
+  Package? _monthlyPackage;
+  Package? _annualPackage;
+  String _monthlyPrice = '\$4.99';
+  String _annualPrice = '\$29.99';
+  String _annualMonthlyPrice = '\$2.50';
+  String _annualYearlyPrice = '\$29.99';
 
   @override
   void initState() {
     super.initState();
     unawaited(_resolveOnboardingProgress());
+    unawaited(_loadOffering());
     _carouselController = PageController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _carouselTimer = Timer.periodic(const Duration(seconds: 3), (_) {
@@ -76,6 +88,95 @@ class _PaywallScreenState extends State<PaywallScreen> {
     });
   }
 
+  Future<void> _loadOffering() async {
+    setState(() => _isLoadingOffering = true);
+    try {
+      final offering = await const SubscriptionService().getOffering();
+      if (!mounted) return;
+      if (offering == null) {
+        setState(() => _isLoadingOffering = false);
+        print('[Paywall] No offering returned — using fallback prices');
+        return;
+      }
+
+      Package? monthly;
+      Package? annual;
+
+      for (final package in offering.availablePackages) {
+        if (package.packageType == PackageType.monthly) monthly = package;
+        if (package.packageType == PackageType.annual) annual = package;
+      }
+
+      String annualMonthly = '\$2.50';
+      String annualYearly = '\$29.99';
+
+      if (annual != null) {
+        annualYearly = annual.storeProduct.priceString;
+        final annualRaw = annual.storeProduct.price;
+        annualMonthly = '\$${(annualRaw / 12).toStringAsFixed(2)}';
+      }
+
+      if (mounted) {
+        setState(() {
+          _monthlyPackage = monthly;
+          _annualPackage = annual;
+          _monthlyPrice = monthly?.storeProduct.priceString ?? '\$4.99';
+          _annualPrice = annualYearly;
+          _annualMonthlyPrice = annualMonthly;
+          _annualYearlyPrice = annualYearly;
+          _isLoadingOffering = false;
+        });
+      }
+      print(
+        '[Paywall] Loaded — monthly: $_monthlyPrice annual: $_annualYearlyPrice',
+      );
+    } catch (e) {
+      print('[Paywall] _loadOffering error: $e');
+      if (mounted) setState(() => _isLoadingOffering = false);
+    }
+  }
+
+  Future<void> _onPurchaseTapped() async {
+    final package = _selectedPlan == 0 ? _monthlyPackage : _annualPackage;
+    if (package == null) {
+      print('[Paywall] No package available for plan $_selectedPlan');
+      return;
+    }
+    if (mounted) setState(() => _isPurchasing = true);
+    try {
+      final success = await const SubscriptionService().purchasePackage(package);
+      if (!mounted) return;
+      if (success) {
+        print('[Paywall] Purchase successful — navigating home');
+        context.go(AppRoutes.home);
+      } else {
+        print('[Paywall] Purchase failed or cancelled');
+      }
+    } finally {
+      if (mounted) setState(() => _isPurchasing = false);
+    }
+  }
+
+  Future<void> _onRestoreTapped() async {
+    if (mounted) setState(() => _isPurchasing = true);
+    try {
+      final success = await const SubscriptionService().restorePurchases();
+      if (!mounted) return;
+      if (success) {
+        print('[Paywall] Restore successful — navigating home');
+        context.go(AppRoutes.home);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No active subscription found to restore.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isPurchasing = false);
+    }
+  }
+
   @override
   void dispose() {
     _carouselTimer?.cancel();
@@ -88,6 +189,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
+    print(
+      '[Paywall] Built — selectedPlan: $_selectedPlan | purchasing: $_isPurchasing',
+    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -165,11 +269,11 @@ class _PaywallScreenState extends State<PaywallScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'Your first week',
+                      'Your first 3 days',
                       style: AppTextStyles.heading1.copyWith(height: 1.25),
                     ),
                     Text(
-                      'is on us',
+                      'are on us',
                       style: AppTextStyles.heading1.copyWith(
                         height: 1.25,
                         color: AppColors.primary,
@@ -177,7 +281,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
-                      'Try everything free for 7 days. No charge until '
+                      'Try everything free for 3 days. No charge until '
                       'your trial ends.',
                       style: AppTextStyles.caption.copyWith(height: 1.5),
                     ),
@@ -239,38 +343,39 @@ class _PaywallScreenState extends State<PaywallScreen> {
                       padding: EdgeInsets.only(top: 4, bottom: 2),
                     ),
                     const SizedBox(height: 18),
-                    _PlanCard(
-                      selected: _selectedPlan == 0,
-                      onTap: () => setState(() => _selectedPlan = 0),
-                      radioSelected: _selectedPlan == 0,
-                      title: 'Monthly',
-                      meta: 'Billed every month',
-                      amount: '\$7.99',
-                      period: '/mo',
-                      badge: null,
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    _PlanCard(
-                      selected: _selectedPlan == 1,
-                      onTap: () => setState(() => _selectedPlan = 1),
-                      radioSelected: _selectedPlan == 1,
-                      title: 'Annual',
-                      meta: '\$44.99/yr · save 58%',
-                      amount: '\$3.75',
-                      period: '/mo',
-                      badge: 'Best value',
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    _PlanCard(
-                      selected: _selectedPlan == 2,
-                      onTap: () => setState(() => _selectedPlan = 2),
-                      radioSelected: _selectedPlan == 2,
-                      title: 'Lifetime',
-                      meta: 'One-time, forever',
-                      amount: '\$149',
-                      period: 'once',
-                      badge: null,
-                    ),
+                    if (_isLoadingOffering)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(AppSpacing.lg),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      )
+                    else ...[
+                      _PlanCard(
+                        selected: _selectedPlan == 0,
+                        onTap: () => setState(() => _selectedPlan = 0),
+                        radioSelected: _selectedPlan == 0,
+                        title: 'Monthly',
+                        meta: 'Billed every month',
+                        amount: _monthlyPrice,
+                        period: '/mo',
+                        badge: null,
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      _PlanCard(
+                        selected: _selectedPlan == 1,
+                        onTap: () => setState(() => _selectedPlan = 1),
+                        radioSelected: _selectedPlan == 1,
+                        title: 'Annual',
+                        meta: '$_annualPrice/yr · best value',
+                        amount: _annualMonthlyPrice,
+                        period: '/mo',
+                        badge: 'Best value',
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -286,8 +391,11 @@ class _PaywallScreenState extends State<PaywallScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   PrimaryButton(
-                    label: 'Start 7-day free trial',
-                    onPressed: () => context.go(AppRoutes.home),
+                    label: 'Start 3-day free trial',
+                    isLoading: _isPurchasing,
+                    onPressed: (_isPurchasing || _isLoadingOffering)
+                        ? null
+                        : () => unawaited(_onPurchaseTapped()),
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Row(
@@ -303,7 +411,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         ),
                       ),
                       GestureDetector(
-                        onTap: () {},
+                        onTap: _isPurchasing
+                            ? null
+                            : () => unawaited(_onRestoreTapped()),
                         child: Text(
                           'Restore purchase',
                           style: AppTextStyles.micro.copyWith(

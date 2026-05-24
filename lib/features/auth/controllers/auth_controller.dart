@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -114,6 +115,12 @@ class AuthController extends ChangeNotifier {
 
   Future<void> signOut() async {
     if (!SupabaseService.isInitialized) return;
+    try {
+      await Purchases.logOut();
+      print('[RevenueCat] Logged out');
+    } catch (e) {
+      print('[RevenueCat] LogOut error: $e');
+    }
     await Supabase.instance.client.auth.signOut();
     await GoogleSignIn.instance.signOut();
   }
