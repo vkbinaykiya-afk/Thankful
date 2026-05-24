@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../app/app_routes.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../../core/services/share_card_service.dart';
+import '../../../core/services/subscription_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/entry_row_parser.dart';
 import '../../../core/theme/app_colors.dart';
@@ -139,6 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _playingEntryId;
   String? _expandedEntryId;
   StreamSubscription<PlayerState>? _playerStateSub;
+  int? _sessionsRemaining;
 
   @override
   void initState() {
@@ -334,6 +336,12 @@ class _HomeScreenState extends State<HomeScreen> {
         _loggedDays = loggedDays;
         _isLoading = false;
       });
+
+      final remaining = await const SubscriptionService().sessionsRemaining();
+      if (mounted) {
+        setState(() => _sessionsRemaining = remaining);
+        print('[Subscription] sessionsRemaining: $_sessionsRemaining');
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -409,9 +417,40 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _makeAnotherEntryCta() {
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.md),
-      child: PrimaryButton(
-        label: 'Make another entry',
-        onPressed: () => context.go(AppRoutes.onboardingConvo),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          PrimaryButton(
+            label: 'Make another entry',
+            onPressed: () async {
+              final canStart =
+                  await const SubscriptionService().canStartSession();
+              if (!mounted) return;
+              if (!canStart) {
+                print(
+                  '[Subscription] Home CTA blocked — redirecting to paywall',
+                );
+                context.go(AppRoutes.paywall);
+                return;
+              }
+              context.go(AppRoutes.onboardingConvo);
+            },
+          ),
+          if (_sessionsRemaining != null &&
+              _sessionsRemaining! <= 2 &&
+              _sessionsRemaining! > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.xs),
+              child: Center(
+                child: Text(
+                  '$_sessionsRemaining session${_sessionsRemaining == 1 ? '' : 's'} remaining on free plan',
+                  style: AppTextStyles.micro.copyWith(
+                    color: AppColors.textTertiary,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

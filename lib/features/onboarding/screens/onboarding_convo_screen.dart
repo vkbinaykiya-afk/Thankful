@@ -15,9 +15,11 @@ import '../../../app/app_routes.dart';
 import '../../../core/constants/convo_session_config.dart';
 import '../../../core/onboarding/onboarding_progress_visibility.dart';
 import '../../../core/services/cartesia_service.dart';
+import '../../../core/services/convo_audio_session.dart';
 import '../../../core/services/conversation_eval_service.dart';
 import '../../../core/services/deepgram_service.dart';
 import '../../../core/services/lhamo_service.dart';
+import '../../../core/services/subscription_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -126,8 +128,28 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
       if (mounted) setState(() {});
     });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _startRecording();
-      unawaited(_startSession());
+      try {
+        // Gate check — paywall before session starts
+        final canStart = await const SubscriptionService().canStartSession();
+        if (!mounted) return;
+        if (!canStart) {
+          print('[Subscription] Session limit reached — redirecting to paywall');
+          context.go(AppRoutes.paywall);
+          return;
+        }
+        await ConvoAudioSession.activateForVoiceSession();
+        await _startRecording();
+        await _startSession();
+      } catch (e, st) {
+        print('Convo startup failed: $e\n$st');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(ConvoAudioSession.messageForError(e)),
+            ),
+          );
+        }
+      }
     });
   }
 
@@ -175,6 +197,7 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
 
   Future<void> _startBgMusic() async {
     try {
+      await ConvoAudioSession.activateForVoiceSession();
       await _bgPlayer.setAsset('assets/audio/Convo_bg_music.mp3');
       await _bgPlayer.setLoopMode(LoopMode.one);
       await _bgPlayer.setVolume(0.3);
@@ -276,6 +299,7 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
       _lhamoSpeaking = true;
       _syncConvoState();
     });
+    await ConvoAudioSession.activateForVoiceSession();
     await _bgPlayer.setVolume(0.1);
     final dir = await getTemporaryDirectory();
     final file = File(
@@ -306,6 +330,7 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
   }
 
   Future<void> _startSession() async {
+    await ConvoAudioSession.activateForVoiceSession();
     unawaited(_startBgMusic());
     if (mounted) {
       setState(() {
@@ -326,11 +351,11 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
       print('_userTurn=true after opening (micStreamStarted=$_micStreamStarted)');
       print('Opening done - starting to listen');
       await _beginListeningForUser();
-    } catch (e) {
-      print('Lhamo opening failed: $e');
+    } catch (e, st) {
+      print('Lhamo opening failed: $e\n$st');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not start session: $e')),
+          SnackBar(content: Text(ConvoAudioSession.messageForError(e))),
         );
       }
     }
@@ -352,6 +377,18 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
 
     await _restartMicStreamForUserTurn();
     if (_windingDown || _sessionEnding || !mounted) return;
+
+    try {
+      await ConvoAudioSession.activateForVoiceSession();
+    } catch (e, st) {
+      print('Audio session before listen failed: $e\n$st');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ConvoAudioSession.messageForError(e))),
+        );
+      }
+      return;
+    }
 
     _awaitingUserSpeech = true;
     if (mounted) {
@@ -656,6 +693,7 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     if (!await _canStartRecording()) return;
 
     try {
+      await ConvoAudioSession.activateForVoiceSession();
       const pcmConfig = RecordConfig(
         encoder: AudioEncoder.pcm16bits,
         sampleRate: _pcmSampleRate,
