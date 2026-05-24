@@ -204,6 +204,8 @@
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				A0D5634CBEE9D32D2BD322F4 /* [CP] Embed Pods Frameworks */,
 				8768E8CA8CBAF4CBE2AB163A /* [CP] Copy Pods Resources */,
+				9BAF18112FC3520F00E5A842 /* ShellScript */,
+				9BAF18122FC3524000E5A842 /* ShellScript */,
 			);
 			buildRules = (
 			);
@@ -326,7 +328,42 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" build";
+			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" build\n";
+		};
+		9BAF18112FC3520F00E5A842 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\nAPP_PATH=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\"\n\nfind \"$APP_PATH\" -name '*.framework' -type d | while read -r FRAMEWORK; do\n    FRAMEWORK_EXECUTABLE_NAME=$(defaults read \"$FRAMEWORK/Info.plist\" CFBundleExecutable 2>/dev/null)\n    FRAMEWORK_EXECUTABLE_PATH=\"$FRAMEWORK/$FRAMEWORK_EXECUTABLE_NAME\"\n    \n    if [ ! -f \"$FRAMEWORK_EXECUTABLE_PATH\" ]; then\n        continue\n    fi\n    \n    ARCHS=$(lipo -info \"$FRAMEWORK_EXECUTABLE_PATH\" 2>/dev/null | grep -oE 'arm64|x86_64|i386' | tr '\\n' ' ')\n    \n    if echo \"$ARCHS\" | grep -q \"x86_64\\|i386\"; then\n        echo \"Stripping simulator slices from $FRAMEWORK_EXECUTABLE_NAME\"\n        lipo -remove x86_64 \"$FRAMEWORK_EXECUTABLE_PATH\" -output \"$FRAMEWORK_EXECUTABLE_PATH\" 2>/dev/null || true\n        lipo -remove i386 \"$FRAMEWORK_EXECUTABLE_PATH\" -output \"$FRAMEWORK_EXECUTABLE_PATH\" 2>/dev/null || true\n    fi\ndone\n";
+		};
+		9BAF18122FC3524000E5A842 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n";
 		};
 		A0D5634CBEE9D32D2BD322F4 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -507,7 +544,7 @@
 				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = FV9K5HKC42;
 				ENABLE_BITCODE = NO;
-				FLUTTER_BUILD_NUMBER = 3;
+				FLUTTER_BUILD_NUMBER = 5;
 				INFOPLIST_FILE = Runner/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -698,7 +735,7 @@
 				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = FV9K5HKC42;
 				ENABLE_BITCODE = NO;
-				FLUTTER_BUILD_NUMBER = 3;
+				FLUTTER_BUILD_NUMBER = 5;
 				INFOPLIST_FILE = Runner/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -729,7 +766,7 @@
 				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = FV9K5HKC42;
 				ENABLE_BITCODE = NO;
-				FLUTTER_BUILD_NUMBER = 3;
+				FLUTTER_BUILD_NUMBER = 5;
 				INFOPLIST_FILE = Runner/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (

@@ -51,8 +51,12 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
   bool _isLoadingOffering = true;
   bool _isPurchasing = false;
+  bool _revenueCatReady = false;
+  String? _plansLoadError;
   Package? _monthlyPackage;
   Package? _annualPackage;
+  StoreProduct? _monthlyProduct;
+  StoreProduct? _annualProduct;
   String _monthlyPrice = '\$4.99';
   String _annualPrice = '\$29.99';
   String _annualMonthlyPrice = '\$2.50';
@@ -89,68 +93,95 @@ class _PaywallScreenState extends State<PaywallScreen> {
   }
 
   Future<void> _loadOffering() async {
-    setState(() => _isLoadingOffering = true);
+    setState(() {
+      _isLoadingOffering = true;
+      _plansLoadError = null;
+    });
     try {
-      final offering = await const SubscriptionService().getOffering();
+      final plans = await const SubscriptionService().loadPaywallPlans();
       if (!mounted) return;
-      if (offering == null) {
-        setState(() => _isLoadingOffering = false);
-        print('[Paywall] No offering returned — using fallback prices');
-        return;
-      }
-
-      Package? monthly;
-      Package? annual;
-
-      for (final package in offering.availablePackages) {
-        if (package.packageType == PackageType.monthly) monthly = package;
-        if (package.packageType == PackageType.annual) annual = package;
-      }
-
-      String annualMonthly = '\$2.50';
-      String annualYearly = '\$29.99';
-
-      if (annual != null) {
-        annualYearly = annual.storeProduct.priceString;
-        final annualRaw = annual.storeProduct.price;
-        annualMonthly = '\$${(annualRaw / 12).toStringAsFixed(2)}';
-      }
-
-      if (mounted) {
-        setState(() {
-          _monthlyPackage = monthly;
-          _annualPackage = annual;
-          _monthlyPrice = monthly?.storeProduct.priceString ?? '\$4.99';
-          _annualPrice = annualYearly;
-          _annualMonthlyPrice = annualMonthly;
-          _annualYearlyPrice = annualYearly;
-          _isLoadingOffering = false;
-        });
-      }
+      setState(() {
+        _revenueCatReady = plans.loadError == null || plans.canPurchase;
+        _plansLoadError = plans.loadError;
+        _monthlyPackage = plans.monthlyPackage;
+        _annualPackage = plans.annualPackage;
+        _monthlyProduct = plans.monthlyProduct;
+        _annualProduct = plans.annualProduct;
+        _monthlyPrice = plans.monthlyPrice;
+        _annualPrice = plans.annualYearlyPrice;
+        _annualMonthlyPrice = plans.annualMonthlyPrice;
+        _annualYearlyPrice = plans.annualYearlyPrice;
+        _isLoadingOffering = false;
+      });
       print(
-        '[Paywall] Loaded — monthly: $_monthlyPrice annual: $_annualYearlyPrice',
+        '[Paywall] Loaded — canPurchase=${plans.canPurchase} '
+        'monthlyPkg=${plans.monthlyPackage?.identifier} '
+        'annualPkg=${plans.annualPackage?.identifier} '
+        'error=${plans.loadError}',
       );
     } catch (e) {
       print('[Paywall] _loadOffering error: $e');
-      if (mounted) setState(() => _isLoadingOffering = false);
+      if (mounted) {
+        setState(() {
+          _isLoadingOffering = false;
+          _plansLoadError = 'Could not load plans: $e';
+        });
+      }
     }
   }
 
+  bool get _hasSelectedPlan => _selectedPlan == 0
+      ? (_monthlyPackage != null || _monthlyProduct != null)
+      : (_annualPackage != null || _annualProduct != null);
+
+  bool get _canPurchase =>
+      _revenueCatReady &&
+      !_isLoadingOffering &&
+      !_isPurchasing &&
+      _hasSelectedPlan;
+
+  void _showPaywallMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   Future<void> _onPurchaseTapped() async {
-    final package = _selectedPlan == 0 ? _monthlyPackage : _annualPackage;
-    if (package == null) {
-      print('[Paywall] No package available for plan $_selectedPlan');
+    if (!_revenueCatReady) {
+      _showPaywallMessage(
+        'Subscriptions are not ready. Add REVENUECAT_API_KEY to .env and restart.',
+      );
       return;
     }
+
+    if (!_hasSelectedPlan) {
+      _showPaywallMessage(
+        _plansLoadError ??
+            'Plans could not be loaded. Tap Retry below or check RevenueCat.',
+      );
+      return;
+    }
+
     if (mounted) setState(() => _isPurchasing = true);
     try {
-      final success = await const SubscriptionService().purchasePackage(package);
+      final service = const SubscriptionService();
+      final SubscriptionPurchaseOutcome outcome;
+      if (_selectedPlan == 0) {
+        outcome = _monthlyPackage != null
+            ? await service.purchasePackage(_monthlyPackage!)
+            : await service.purchaseStoreProduct(_monthlyProduct!);
+      } else {
+        outcome = _annualPackage != null
+            ? await service.purchasePackage(_annualPackage!)
+            : await service.purchaseStoreProduct(_annualProduct!);
+      }
       if (!mounted) return;
-      if (success) {
+      if (outcome.success) {
         print('[Paywall] Purchase successful — navigating home');
         context.go(AppRoutes.home);
-      } else {
-        print('[Paywall] Purchase failed or cancelled');
+      } else if (!outcome.cancelled && outcome.message != null) {
+        _showPaywallMessage(outcome.message!);
       }
     } finally {
       if (mounted) setState(() => _isPurchasing = false);
@@ -391,12 +422,38 @@ class _PaywallScreenState extends State<PaywallScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   PrimaryButton(
-                    label: 'Start 3-day free trial',
-                    isLoading: _isPurchasing,
-                    onPressed: (_isPurchasing || _isLoadingOffering)
-                        ? null
-                        : () => unawaited(_onPurchaseTapped()),
+                    label: _isLoadingOffering
+                        ? 'Loading plans…'
+                        : !_hasSelectedPlan
+                            ? 'Plans unavailable'
+                            : 'Start 3-day free trial',
+                    isLoading: _isPurchasing || _isLoadingOffering,
+                    onPressed: _canPurchase
+                        ? () => unawaited(_onPurchaseTapped())
+                        : null,
                   ),
+                  if (_plansLoadError != null && !_isLoadingOffering) ...[
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      _plansLoadError!,
+                      textAlign: TextAlign.center,
+                      style: AppTextStyles.micro.copyWith(
+                        color: AppColors.textTertiary,
+                        height: 1.4,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _isPurchasing
+                          ? null
+                          : () => unawaited(_loadOffering()),
+                      child: Text(
+                        'Retry loading plans',
+                        style: AppTextStyles.micro.copyWith(
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.xs),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
