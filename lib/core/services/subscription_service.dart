@@ -86,15 +86,43 @@ class SubscriptionService {
 
   static bool _hasPremiumEntitlement(CustomerInfo info) {
     final active = info.entitlements.active;
-    if (active.containsKey(_entitlementId)) return true;
-    if (active.isNotEmpty) {
+    final hasTarget = active.containsKey(_entitlementId);
+    if (!hasTarget && active.isNotEmpty) {
       print(
-        '[RevenueCat] Entitlement "$_entitlementId" not found; active: '
-        '${active.keys.toList()}',
+        '[RevenueCat] Active entitlements ${active.keys.toList()} but not '
+        '"$_entitlementId" — not treating as subscribed',
       );
-      return true;
     }
-    return false;
+    return hasTarget;
+  }
+
+  /// Links RevenueCat [Purchases.appUserID] to the signed-in Supabase user.
+  /// Call before purchase/restore so the dashboard shows your UUID, not $RCAnonymousID.
+  static Future<void> ensureRevenueCatUserLinked() async {
+    if (!_configured || !SupabaseService.isInitialized) return;
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) {
+      print('[RevenueCat] ensureLinked skipped — no Supabase user');
+      return;
+    }
+    try {
+      final currentId = await Purchases.appUserID;
+      if (currentId == userId) {
+        print('[RevenueCat] ensureLinked OK — appUserID=$userId');
+        return;
+      }
+      print(
+        '[RevenueCat] ensureLinked — appUserID was "$currentId", logging in as $userId',
+      );
+      final result = await Purchases.logIn(userId);
+      final afterId = await Purchases.appUserID;
+      print(
+        '[RevenueCat] logIn done — created=${result.created} '
+        'appUserID=$afterId originalAppUserId=${result.customerInfo.originalAppUserId}',
+      );
+    } catch (e) {
+      print('[RevenueCat] ensureLinked error: $e');
+    }
   }
 
   static String? _revenueCatApiKey() {
@@ -126,13 +154,8 @@ class SubscriptionService {
       _configured = await Purchases.isConfigured;
       print('[RevenueCat] Initialised (configured=$_configured)');
 
-      // Identify user with Supabase user ID so RevenueCat links purchases to user
       if (SupabaseService.isInitialized) {
-        final userId = Supabase.instance.client.auth.currentUser?.id;
-        if (userId != null) {
-          await Purchases.logIn(userId);
-          print('[RevenueCat] Logged in user: $userId');
-        }
+        await ensureRevenueCatUserLinked();
       }
     } catch (e) {
       _configured = false;
@@ -158,12 +181,14 @@ class SubscriptionService {
       return false;
     }
     try {
+      await ensureRevenueCatUserLinked();
       final info = await Purchases.getCustomerInfo();
+      final appUserId = await Purchases.appUserID;
       final activeKeys = info.entitlements.active.keys.toList();
       final active = _hasPremiumEntitlement(info);
       print(
-        '[RevenueCat] isSubscribed: $active | active entitlements: $activeKeys | '
-        'looking for: $_entitlementId',
+        '[RevenueCat] isSubscribed: $active | appUserID=$appUserId | '
+        'active entitlements: $activeKeys | looking for: $_entitlementId',
       );
       return active;
     } catch (e) {
@@ -173,6 +198,7 @@ class SubscriptionService {
   }
 
   /// Navigate to convo or paywall depending on [canStartSession].
+  /// Gate for starting a **new** journal session only (not home viewing/sharing).
   static Future<void> navigateToSessionOrPaywall(
     BuildContext context, {
     bool paywallOnboardingProgress = false,
@@ -366,6 +392,7 @@ class SubscriptionService {
         'restart the app.',
       );
     }
+    await ensureRevenueCatUserLinked();
 
     final productId = package.storeProduct.identifier;
     print(
@@ -378,36 +405,17 @@ class SubscriptionService {
         PurchaseParams.package(package),
       );
       final active = _hasPremiumEntitlement(result.customerInfo);
-      print('[RevenueCat] Purchase complete — premium active: $active');
+      final appUserId = await Purchases.appUserID;
+      print(
+        '[RevenueCat] Purchase complete — premium active: $active appUserID=$appUserId',
+      );
       if (active) return const SubscriptionPurchaseOutcome.success();
       return const SubscriptionPurchaseOutcome.failure(
         'Purchase finished but subscription was not activated. '
         'Check RevenueCat entitlement mapping.',
       );
     } on PlatformException catch (e) {
-      final code = PurchasesErrorHelper.getErrorCode(e);
-      print(
-        '[RevenueCat] Purchase PlatformException: $code '
-        'message=${e.message} details=${e.details}',
-      );
-      if (code == PurchasesErrorCode.purchaseCancelledError) {
-        return const SubscriptionPurchaseOutcome.cancelled();
-      }
-      if (code == PurchasesErrorCode.configurationError) {
-        return const SubscriptionPurchaseOutcome.failure(
-          'RevenueCat is not configured. Restart the app after adding your API key.',
-        );
-      }
-      if (code == PurchasesErrorCode.productNotAvailableForPurchaseError) {
-        return SubscriptionPurchaseOutcome.failure(
-          'This plan is not available in the App Store yet. '
-          'Use a Sandbox Apple ID on a real device, or finish App Store Connect setup. '
-          '(${e.message ?? productId})',
-        );
-      }
-      return SubscriptionPurchaseOutcome.failure(
-        e.message ?? 'Purchase failed ($code)',
-      );
+      return _mapPurchasePlatformException(e, productId: productId);
     } catch (e) {
       print('[RevenueCat] Purchase unexpected error: $e');
       return SubscriptionPurchaseOutcome.failure('Purchase failed: $e');
@@ -424,6 +432,7 @@ class SubscriptionService {
         'restart the app.',
       );
     }
+    await ensureRevenueCatUserLinked();
     print('[RevenueCat] Presenting store sheet for product ${product.identifier}');
     try {
       final result = await Purchases.purchase(
@@ -435,21 +444,70 @@ class SubscriptionService {
         'Purchase finished but subscription was not activated.',
       );
     } on PlatformException catch (e) {
-      final code = PurchasesErrorHelper.getErrorCode(e);
-      if (code == PurchasesErrorCode.purchaseCancelledError) {
-        return const SubscriptionPurchaseOutcome.cancelled();
-      }
-      return SubscriptionPurchaseOutcome.failure(
-        e.message ?? 'Purchase failed ($code)',
+      return _mapPurchasePlatformException(
+        e,
+        productId: product.identifier,
       );
     } catch (e) {
       return SubscriptionPurchaseOutcome.failure('Purchase failed: $e');
     }
   }
 
+  /// Maps StoreKit / RevenueCat errors; treats existing subscription as success.
+  Future<SubscriptionPurchaseOutcome> _mapPurchasePlatformException(
+    PlatformException e, {
+    String? productId,
+  }) async {
+    final code = PurchasesErrorHelper.getErrorCode(e);
+    print(
+      '[RevenueCat] Purchase PlatformException: $code '
+      'message=${e.message} details=${e.details}',
+    );
+    if (code == PurchasesErrorCode.purchaseCancelledError) {
+      return const SubscriptionPurchaseOutcome.cancelled();
+    }
+    if (code == PurchasesErrorCode.productAlreadyPurchasedError ||
+        code == PurchasesErrorCode.receiptAlreadyInUseError) {
+      final synced = await _syncExistingSubscription();
+      if (synced) return const SubscriptionPurchaseOutcome.success();
+      return const SubscriptionPurchaseOutcome.failure(
+        'You already have an active subscription. Try Restore purchase, or restart the app.',
+      );
+    }
+    if (code == PurchasesErrorCode.configurationError) {
+      return const SubscriptionPurchaseOutcome.failure(
+        'RevenueCat is not configured. Restart the app after adding your API key.',
+      );
+    }
+    if (code == PurchasesErrorCode.productNotAvailableForPurchaseError) {
+      return SubscriptionPurchaseOutcome.failure(
+        'This plan is not available in the App Store yet. '
+        '(${e.message ?? productId ?? 'unknown product'})',
+      );
+    }
+    return SubscriptionPurchaseOutcome.failure(
+      e.message ?? 'Purchase failed ($code)',
+    );
+  }
+
+  /// After "already subscribed" from Apple, refresh RC and check entitlement.
+  Future<bool> _syncExistingSubscription() async {
+    try {
+      print('[RevenueCat] Syncing existing subscription…');
+      var info = await Purchases.getCustomerInfo();
+      if (_hasPremiumEntitlement(info)) return true;
+      info = await Purchases.restorePurchases();
+      return _hasPremiumEntitlement(info);
+    } catch (e) {
+      print('[RevenueCat] _syncExistingSubscription error: $e');
+      return false;
+    }
+  }
+
   /// Restore purchases — call from paywall restore button.
   Future<bool> restorePurchases() async {
     try {
+      await ensureRevenueCatUserLinked();
       final info = await Purchases.restorePurchases();
       final active = _hasPremiumEntitlement(info);
       print('[RevenueCat] Restore complete — premium active: $active');
@@ -487,7 +545,10 @@ class SubscriptionService {
     }
   }
 
-  /// Returns true if user can start a new session.
+  /// True if user may **create** a new journal session.
+  ///
+  /// Blocked when: lifetime saved entries >= [freeSessionLimit] (5 in production)
+  /// and user has no active subscription. Does not affect viewing or sharing entries.
   Future<bool> canStartSession() async {
     if (!SupabaseService.isInitialized) {
       print('[Subscription] BLOCKED — Supabase not initialized');
@@ -499,6 +560,7 @@ class SubscriptionService {
       print('[Subscription] ALLOWED — dev bypass for ${user.id}');
       return true;
     }
+
     final subscribed = await isSubscribed();
     if (subscribed) {
       print('[Subscription] ALLOWED — RevenueCat entitlement active');
@@ -528,5 +590,176 @@ class SubscriptionService {
     if (subscribed) return null;
     final count = await getLifetimeSessionCount();
     return (freeSessionLimit - count).clamp(0, freeSessionLimit);
+  }
+
+  /// RevenueCat entitlement identifier used by the session gate.
+  static String get premiumEntitlementId => _entitlementId;
+
+  /// Snapshot for the Account screen debug panel (TestFlight / QA).
+  static Future<SubscriptionDebugSnapshot> loadDebugSnapshot() async {
+    final fetchedAt = DateTime.now();
+    String? supabaseUserId;
+    String? supabaseEmail;
+    var devBypass = false;
+
+    if (SupabaseService.isInitialized) {
+      final user = Supabase.instance.client.auth.currentUser;
+      supabaseUserId = user?.id;
+      supabaseEmail = user?.email;
+      if (user != null) devBypass = _hasDevBypass(user.id);
+    }
+
+    var rcConfigured = _configured;
+    String? rcAppUserId;
+    String? rcOriginalAppUserId;
+    final activeEntitlements = <String>[];
+    final allEntitlementKeys = <String>[];
+    String? rcError;
+
+    if (rcConfigured) {
+      try {
+        await ensureRevenueCatUserLinked();
+        rcAppUserId = await Purchases.appUserID;
+        final info = await Purchases.getCustomerInfo();
+        rcOriginalAppUserId = info.originalAppUserId;
+        activeEntitlements.addAll(info.entitlements.active.keys);
+        allEntitlementKeys.addAll(info.entitlements.all.keys);
+      } catch (e) {
+        rcError = '$e';
+      }
+    } else {
+      try {
+        rcConfigured = await Purchases.isConfigured;
+      } catch (_) {
+        rcConfigured = false;
+      }
+    }
+
+    final service = const SubscriptionService();
+    var subscribed = false;
+    var canStart = false;
+    var entryCount = 0;
+    int? remaining;
+    String? gateError;
+
+    try {
+      subscribed = await service.isSubscribed();
+      canStart = await service.canStartSession();
+      entryCount = await service.getLifetimeSessionCount();
+      remaining = await service.sessionsRemaining();
+    } catch (e) {
+      gateError = '$e';
+    }
+
+    return SubscriptionDebugSnapshot(
+      fetchedAt: fetchedAt,
+      supabaseUserId: supabaseUserId,
+      supabaseEmail: supabaseEmail,
+      revenueCatConfigured: rcConfigured,
+      revenueCatAppUserId: rcAppUserId,
+      revenueCatOriginalAppUserId: rcOriginalAppUserId,
+      isSubscribed: subscribed,
+      canStartSession: canStart,
+      lifetimeEntryCount: entryCount,
+      freeSessionLimit: freeSessionLimit,
+      sessionsRemaining: remaining,
+      activeEntitlements: activeEntitlements,
+      allEntitlementKeys: allEntitlementKeys,
+      expectedEntitlementId: _entitlementId,
+      devBypassActive: devBypass,
+      ignoreRevenueCatEntitlement:
+          FeatureFlags.subscriptionIgnoreRevenueCatEntitlement,
+      revenueCatError: rcError,
+      gateError: gateError,
+    );
+  }
+}
+
+/// Debug panel payload for Account → Subscription debug.
+class SubscriptionDebugSnapshot {
+  const SubscriptionDebugSnapshot({
+    required this.fetchedAt,
+    this.supabaseUserId,
+    this.supabaseEmail,
+    required this.revenueCatConfigured,
+    this.revenueCatAppUserId,
+    this.revenueCatOriginalAppUserId,
+    required this.isSubscribed,
+    required this.canStartSession,
+    required this.lifetimeEntryCount,
+    required this.freeSessionLimit,
+    this.sessionsRemaining,
+    required this.activeEntitlements,
+    required this.allEntitlementKeys,
+    required this.expectedEntitlementId,
+    required this.devBypassActive,
+    required this.ignoreRevenueCatEntitlement,
+    this.revenueCatError,
+    this.gateError,
+  });
+
+  final DateTime fetchedAt;
+  final String? supabaseUserId;
+  final String? supabaseEmail;
+  final bool revenueCatConfigured;
+  final String? revenueCatAppUserId;
+  final String? revenueCatOriginalAppUserId;
+  final bool isSubscribed;
+  final bool canStartSession;
+  final int lifetimeEntryCount;
+  final int freeSessionLimit;
+  final int? sessionsRemaining;
+  final List<String> activeEntitlements;
+  final List<String> allEntitlementKeys;
+  final String expectedEntitlementId;
+  final bool devBypassActive;
+  final bool ignoreRevenueCatEntitlement;
+  final String? revenueCatError;
+  final String? gateError;
+
+  bool get appUserIdMatchesSupabase =>
+      supabaseUserId != null &&
+      revenueCatAppUserId != null &&
+      supabaseUserId == revenueCatAppUserId;
+
+  String get displayText {
+    final b = StringBuffer();
+    void line(String label, Object? value) {
+      b.writeln('$label: ${value ?? '—'}');
+    }
+
+    line('Fetched', fetchedAt.toIso8601String());
+    b.writeln();
+    line('Supabase user ID', supabaseUserId);
+    line('Email', supabaseEmail);
+    b.writeln();
+    line('RC configured', revenueCatConfigured);
+    line('RC app user ID', revenueCatAppUserId);
+    line('RC original app user ID', revenueCatOriginalAppUserId);
+    line('RC ID matches Supabase', appUserIdMatchesSupabase);
+    if (revenueCatError != null) line('RC error', revenueCatError);
+    b.writeln();
+    line('Subscribed (gate)', isSubscribed);
+    line('Can start session', canStartSession);
+    line('Saved entries', lifetimeEntryCount);
+    line('Free limit', freeSessionLimit);
+    line(
+      'Sessions remaining',
+      sessionsRemaining?.toString() ?? 'unlimited (subscribed/bypass)',
+    );
+    line('Dev bypass', devBypassActive);
+    line('Ignore RC entitlement flag', ignoreRevenueCatEntitlement);
+    if (gateError != null) line('Gate error', gateError);
+    b.writeln();
+    line('Expected entitlement', expectedEntitlementId);
+    line(
+      'Active entitlements',
+      activeEntitlements.isEmpty ? '(none)' : activeEntitlements.join(', '),
+    );
+    line(
+      'All entitlement keys',
+      allEntitlementKeys.isEmpty ? '(none)' : allEntitlementKeys.join(', '),
+    );
+    return b.toString().trimRight();
   }
 }

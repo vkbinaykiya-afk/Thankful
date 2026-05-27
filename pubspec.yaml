@@ -1,7 +1,7 @@
 name: thankful
 description: A voice-first gratitude journalling app.
 publish_to: 'none'
-version: 1.0.0+3
+version: 1.0.0+12
 
 environment:
   sdk: ^3.10.8
@@ -32,6 +32,7 @@ dependencies:
   lottie: ^3.0.0
   flutter_svg: ^2.3.0
   share_plus: ^10.1.4
+  url_launcher: ^6.3.0
 
 dev_dependencies:
   flutter_test:
@@ -39,6 +40,11 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.13.1
   flutter_native_splash: ^2.3.9
+
+# path_provider_foundation 2.6.0+ bundles objective_c via FFI; App Store rejects
+# IOSSIMULATOR markers in release IPAs (Transporter error 91169). Revert to plugin impl.
+dependency_overrides:
+  path_provider_foundation: 2.5.1
 
 flutter:
   uses-material-design: true

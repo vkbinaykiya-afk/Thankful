@@ -314,11 +314,10 @@ Future<void> main() async {
   if (SupabaseService.isInitialized) {
     Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
       try {
-        if (data.event == AuthChangeEvent.signedIn &&
+        if ((data.event == AuthChangeEvent.signedIn ||
+                data.event == AuthChangeEvent.initialSession) &&
             data.session?.user.id != null) {
-          final userId = data.session!.user.id;
-          await Purchases.logIn(userId);
-          print('[RevenueCat] Logged in user: $userId');
+          await SubscriptionService.ensureRevenueCatUserLinked();
         } else if (data.event == AuthChangeEvent.signedOut) {
           await Purchases.logOut();
           print('[RevenueCat] Logged out');

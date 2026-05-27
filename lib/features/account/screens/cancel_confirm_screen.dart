@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../core/theme/app_colors.dart';
@@ -128,7 +129,30 @@ class CancelConfirmScreen extends StatelessWidget {
                   const SizedBox(height: AppSpacing.sm),
                   SecondaryButton(
                     label: 'Cancel anyway',
-                    onPressed: () => context.go(AppRoutes.home),
+                    onPressed: () async {
+                      print(
+                        '[CancelConfirm] Cancel anyway tapped — opening Apple subscription management',
+                      );
+                      final url = Uri.parse(
+                        'https://apps.apple.com/account/subscriptions',
+                      );
+                      if (await canLaunchUrl(url)) {
+                        await launchUrl(
+                          url,
+                          mode: LaunchMode.externalApplication,
+                        );
+                      } else {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Go to iOS Settings → Apple ID → Subscriptions to cancel.',
+                              ),
+                            ),
+                          );
+                        }
+                      }
+                    },
                   ),
                 ],
               ),

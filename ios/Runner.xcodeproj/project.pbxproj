@@ -200,12 +200,12 @@
 				97C146EA1CF9000F007C117D /* Sources */,
 				97C146EB1CF9000F007C117D /* Frameworks */,
 				97C146EC1CF9000F007C117D /* Resources */,
+				9BAF18132FC6EF9200E5A842 /* Run Script */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				A0D5634CBEE9D32D2BD322F4 /* [CP] Embed Pods Frameworks */,
 				8768E8CA8CBAF4CBE2AB163A /* [CP] Copy Pods Resources */,
 				9BAF18112FC3520F00E5A842 /* ShellScript */,
-				9BAF18122FC3524000E5A842 /* ShellScript */,
 			);
 			buildRules = (
 			);
@@ -346,10 +346,11 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\nAPP_PATH=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\"\n\nfind \"$APP_PATH\" -name '*.framework' -type d | while read -r FRAMEWORK; do\n    FRAMEWORK_EXECUTABLE_NAME=$(defaults read \"$FRAMEWORK/Info.plist\" CFBundleExecutable 2>/dev/null)\n    FRAMEWORK_EXECUTABLE_PATH=\"$FRAMEWORK/$FRAMEWORK_EXECUTABLE_NAME\"\n    \n    if [ ! -f \"$FRAMEWORK_EXECUTABLE_PATH\" ]; then\n        continue\n    fi\n    \n    ARCHS=$(lipo -info \"$FRAMEWORK_EXECUTABLE_PATH\" 2>/dev/null | grep -oE 'arm64|x86_64|i386' | tr '\\n' ' ')\n    \n    if echo \"$ARCHS\" | grep -q \"x86_64\\|i386\"; then\n        echo \"Stripping simulator slices from $FRAMEWORK_EXECUTABLE_NAME\"\n        lipo -remove x86_64 \"$FRAMEWORK_EXECUTABLE_PATH\" -output \"$FRAMEWORK_EXECUTABLE_PATH\" 2>/dev/null || true\n        lipo -remove i386 \"$FRAMEWORK_EXECUTABLE_PATH\" -output \"$FRAMEWORK_EXECUTABLE_PATH\" 2>/dev/null || true\n    fi\ndone\n";
+			shellScript = "APP_PATH=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\"\n\nfind \"$APP_PATH\" -name '*.framework' -type d | while read -r FRAMEWORK; do\n    FRAMEWORK_EXECUTABLE_NAME=$(defaults read \"$FRAMEWORK/Info.plist\" CFBundleExecutable 2>/dev/null)\n    FRAMEWORK_EXECUTABLE_PATH=\"$FRAMEWORK/$FRAMEWORK_EXECUTABLE_NAME\"\n    \n    if [ ! -f \"$FRAMEWORK_EXECUTABLE_PATH\" ]; then\n        continue\n    fi\n    \n    echo \"Checking $FRAMEWORK_EXECUTABLE_NAME\"\n    lipo -info \"$FRAMEWORK_EXECUTABLE_PATH\" 2>/dev/null || continue\n    \n    # Remove x86_64 simulator slice\n    lipo -remove x86_64 \"$FRAMEWORK_EXECUTABLE_PATH\" -output \"$FRAMEWORK_EXECUTABLE_PATH\" 2>/dev/null || true\n    \n    # Remove i386 simulator slice  \n    lipo -remove i386 \"$FRAMEWORK_EXECUTABLE_PATH\" -output \"$FRAMEWORK_EXECUTABLE_PATH\" 2>/dev/null || true\n    \n    # Handle arm64 simulator slice using vtool\n    if vtool -show-build \"$FRAMEWORK_EXECUTABLE_PATH\" 2>/dev/null | grep -q \"IOSSIMULATOR\"; then\n        echo \"Removing arm64 simulator slice from $FRAMEWORK_EXECUTABLE_NAME\"\n        # Extract only the iOS arm64 slice\n        python3 -c \"\nimport subprocess, sys, os\n\npath = sys.argv[1]\nresult = subprocess.run(['vtool', '-show-build', path], capture_output=True, text=True)\n\nif 'IOSSIMULATOR' in result.stdout:\n    tmp = path + '.tmp'\n    os.rename(path, tmp)\n    subprocess.run(['lipo', tmp, '-extract', 'arm64', '-output', path])\n    # Verify it's now iOS not simulator\n    vtool_result = subprocess.run(['vtool', '-set-build-version', 'ios', '16.0', '16.0', '-replace', '-output', path, path], capture_output=True)\n    os.remove(tmp)\n    print(f'Fixed simulator slice in {os.path.basename(path)}')\n\" \"$FRAMEWORK_EXECUTABLE_PATH\" 2>/dev/null || true\n    fi\ndone\n";
 		};
-		9BAF18122FC3524000E5A842 /* ShellScript */ = {
+		9BAF18132FC6EF9200E5A842 /* Run Script */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
@@ -357,13 +358,14 @@
 			);
 			inputPaths = (
 			);
+			name = "Run Script";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n";
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\nFRAMEWORK_PATH=\"${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}/objective_c.framework\"\nPLIST_PATH=\"$FRAMEWORK_PATH/Info.plist\"\n\nif [ -f \"$PLIST_PATH\" ]; then\n  CURRENT=$(/usr/libexec/PlistBuddy -c \"Print :MinimumOSVersion\" \"$PLIST_PATH\" 2>/dev/null)\n  echo \"objective_c.framework current MinimumOSVersion: $CURRENT\"\n  /usr/libexec/PlistBuddy -c \"Set :MinimumOSVersion 16.0\" \"$PLIST_PATH\"\n  echo \"objective_c.framework MinimumOSVersion set to 16.0\"\nelse\n  echo \"objective_c.framework Info.plist not found at $PLIST_PATH\"\nfi\n";
 		};
 		A0D5634CBEE9D32D2BD322F4 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -544,7 +546,7 @@
 				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = FV9K5HKC42;
 				ENABLE_BITCODE = NO;
-				FLUTTER_BUILD_NUMBER = 5;
+				FLUTTER_BUILD_NUMBER = 12;
 				INFOPLIST_FILE = Runner/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -735,7 +737,7 @@
 				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = FV9K5HKC42;
 				ENABLE_BITCODE = NO;
-				FLUTTER_BUILD_NUMBER = 5;
+				FLUTTER_BUILD_NUMBER = 12;
 				INFOPLIST_FILE = Runner/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -766,7 +768,7 @@
 				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = FV9K5HKC42;
 				ENABLE_BITCODE = NO;
-				FLUTTER_BUILD_NUMBER = 5;
+				FLUTTER_BUILD_NUMBER = 12;
 				INFOPLIST_FILE = Runner/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../core/constants/feature_flags.dart';
 import '../../../core/services/supabase_service.dart';
+import '../widgets/subscription_debug_sheet.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -181,6 +183,26 @@ class UserAccountScreen extends StatelessWidget {
                       onCancelTrial: () =>
                           context.push(AppRoutes.cancelConfirm),
                     ),
+                    if (FeatureFlags.subscriptionDebugPanel) ...[
+                      SizedBox(height: AppSpacing.md),
+                      Center(
+                        child: TextButton(
+                          onPressed: () => showSubscriptionDebugSheet(context),
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.textTertiary,
+                          ),
+                          child: Text(
+                            'Subscription debug',
+                            style: AppTextStyles.caption.copyWith(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w400,
+                              height: 1.4,
+                              color: AppColors.textTertiary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                     SizedBox(height: AppSpacing.lg),
                     Center(
                       child: TextButton(

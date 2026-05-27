@@ -10,11 +10,15 @@ class FeatureFlags {
   /// `subscription_service.dart`. Set false to test the real gate / paywall.
   static const bool subscriptionDevBypass = false;
 
-  /// Lifetime free sessions before paywall (saved entries in Supabase).
-  /// Set to `0` to hit the paywall immediately when testing.
+  /// Lifetime free journal entries before paywall (production: 5).
+  /// Gate applies only to **creating** new sessions, not viewing/sharing on home.
   static const int subscriptionFreeSessionLimit = 5;
 
   /// When true, ignore RevenueCat active entitlement for the session gate only.
-  /// Set true while testing the 5-entry paywall if sandbox purchase left an active sub.
-  static const bool subscriptionIgnoreRevenueCatEntitlement = true;
+  /// Keep false for TestFlight / App Store — must be false or subscribers stay on paywall.
+  static const bool subscriptionIgnoreRevenueCatEntitlement = false;
+
+  /// Tap "Subscription debug" on Account screen (RevenueCat + gate state).
+  /// Set false before App Store submission.
+  static const bool subscriptionDebugPanel = true;
 }

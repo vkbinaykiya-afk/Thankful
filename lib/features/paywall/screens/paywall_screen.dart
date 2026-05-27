@@ -66,6 +66,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
   void initState() {
     super.initState();
     unawaited(_resolveOnboardingProgress());
+    unawaited(_redirectIfAlreadySubscribed());
     unawaited(_loadOffering());
     _carouselController = PageController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -90,6 +91,25 @@ class _PaywallScreenState extends State<PaywallScreen> {
       _showOnboardingProgress =
           widget.showOnboardingProgress && fromDb;
     });
+  }
+
+  /// Subscribers who land on paywall (e.g. 5-entry gate) should not loop here.
+  Future<void> _redirectIfAlreadySubscribed() async {
+    final subscribed = await const SubscriptionService().isSubscribed();
+    if (!mounted || !subscribed) return;
+    print('[Paywall] Already subscribed — leaving paywall');
+    await _leavePaywallToHome();
+  }
+
+  /// Home exit from paywall. Onboarding complete is set here (not on purchase).
+  Future<void> _leavePaywallToHome() async {
+    final markComplete = widget.showOnboardingProgress ||
+        await OnboardingProgressVisibility.shouldShowProgressStrip();
+    if (markComplete) {
+      await OnboardingProgressVisibility.markOnboardingComplete();
+    }
+    if (!mounted) return;
+    context.go(AppRoutes.home);
   }
 
   Future<void> _loadOffering() async {
@@ -178,8 +198,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
       }
       if (!mounted) return;
       if (outcome.success) {
-        print('[Paywall] Purchase successful — navigating home');
-        context.go(AppRoutes.home);
+        print('[Paywall] Purchase successful — leaving paywall');
+        await _leavePaywallToHome();
       } else if (!outcome.cancelled && outcome.message != null) {
         _showPaywallMessage(outcome.message!);
       }
@@ -194,8 +214,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
       final success = await const SubscriptionService().restorePurchases();
       if (!mounted) return;
       if (success) {
-        print('[Paywall] Restore successful — navigating home');
-        context.go(AppRoutes.home);
+        print('[Paywall] Restore successful — leaving paywall');
+        await _leavePaywallToHome();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -276,7 +296,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         minWidth: 36,
                         minHeight: 36,
                       ),
-                      onPressed: () => context.go(AppRoutes.home),
+                      onPressed: () => unawaited(_leavePaywallToHome()),
                       icon: Icon(
                         Icons.close,
                         size: 16,

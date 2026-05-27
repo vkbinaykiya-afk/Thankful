@@ -34,4 +34,22 @@ abstract final class OnboardingProgressVisibility {
       return true;
     }
   }
+
+  /// Marks onboarding finished in Supabase (independent of subscription / purchase).
+  static Future<void> markOnboardingComplete() async {
+    if (!SupabaseService.isInitialized) return;
+
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      await Supabase.instance.client
+          .from('users')
+          .update({'onboarding_complete': true})
+          .eq('id', user.id);
+      print('[Onboarding] onboarding_complete set for ${user.id}');
+    } catch (e) {
+      print('[Onboarding] markOnboardingComplete failed: $e');
+    }
+  }
 }

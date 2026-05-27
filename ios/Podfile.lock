@@ -48,6 +48,9 @@ PODS:
     - FlutterMacOS
   - package_info_plus (0.4.5):
     - Flutter
+  - path_provider_foundation (0.0.1):
+    - Flutter
+    - FlutterMacOS
   - permission_handler_apple (9.3.0):
     - Flutter
   - PostHog (3.58.1)
@@ -56,14 +59,14 @@ PODS:
     - FlutterMacOS
     - PostHog (~> 3.22)
   - PromisesObjC (2.4.0)
-  - purchases_flutter (10.0.2):
+  - purchases_flutter (10.1.1):
     - Flutter
-    - PurchasesHybridCommon (= 18.4.0)
-  - PurchasesHybridCommon (18.4.0):
-    - RevenueCat (= 5.70.0)
+    - PurchasesHybridCommon (= 18.7.0)
+  - PurchasesHybridCommon (18.7.0):
+    - RevenueCat (= 5.73.0)
   - record_ios (1.2.0):
     - Flutter
-  - RevenueCat (5.70.0)
+  - RevenueCat (5.73.0)
   - Sentry/HybridSDK (8.46.0)
   - sentry_flutter (8.14.2):
     - Flutter
@@ -87,6 +90,7 @@ DEPENDENCIES:
   - google_sign_in_ios (from `.symlinks/plugins/google_sign_in_ios/darwin`)
   - just_audio (from `.symlinks/plugins/just_audio/darwin`)
   - package_info_plus (from `.symlinks/plugins/package_info_plus/ios`)
+  - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
   - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
   - posthog_flutter (from `.symlinks/plugins/posthog_flutter/ios`)
   - purchases_flutter (from `.symlinks/plugins/purchases_flutter/ios`)
@@ -126,6 +130,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/just_audio/darwin"
   package_info_plus:
     :path: ".symlinks/plugins/package_info_plus/ios"
+  path_provider_foundation:
+    :path: ".symlinks/plugins/path_provider_foundation/darwin"
   permission_handler_apple:
     :path: ".symlinks/plugins/permission_handler_apple/ios"
   posthog_flutter:
@@ -159,14 +165,15 @@ SPEC CHECKSUMS:
   GTMSessionFetcher: 5aea5ba6bd522a239e236100971f10cb71b96ab6
   just_audio: 4e391f57b79cad2b0674030a00453ca5ce817eed
   package_info_plus: af8e2ca6888548050f16fa2f1938db7b5a5df499
+  path_provider_foundation: bb55f6dbba17d0dccd6737fe6f7f34fbd0376880
   permission_handler_apple: 4ed2196e43d0651e8ff7ca3483a069d469701f2d
   PostHog: 162c013c6a8e442382f6804076bf3ad072c8778a
   posthog_flutter: 631ab870f7daf1ed190deeb2414eb3e347445f37
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
-  purchases_flutter: 93c46839a7edc925d1e9478584b3d3e1cd6eebe2
-  PurchasesHybridCommon: 2cd3e4b74c60f5a61603d78e4071274217cd9f6b
+  purchases_flutter: 5ca66464088136b9338d1024558a78016cf42b5f
+  PurchasesHybridCommon: 90419d67c688e485c84da8d1864f9663a198751a
   record_ios: 412daca2350b228e698fffcd08f1f94ceb1e3844
-  RevenueCat: f30d8ee4fd36ce56afa40923d314239761eb58a2
+  RevenueCat: 3210d4f19cef963a1422f38e424fc599e2f0f7c6
   Sentry: da60d980b197a46db0b35ea12cb8f39af48d8854
   sentry_flutter: 27892878729f42701297c628eb90e7c6529f3684
   share_plus: 50da8cb520a8f0f65671c6c6a99b3617ed10a58a
@@ -174,6 +181,6 @@ SPEC CHECKSUMS:
   sign_in_with_apple: c5dcc141574c8c54d5ac99dd2163c0c72ad22418
   url_launcher_ios: 7a95fa5b60cc718a708b8f2966718e93db0cef1b
 
-PODFILE CHECKSUM: 8a0074366594ef467288aece49d35f95ef214ade
+PODFILE CHECKSUM: fd09da5b152b453def28d778466cb879ef0b1ead
 
 COCOAPODS: 1.16.2
