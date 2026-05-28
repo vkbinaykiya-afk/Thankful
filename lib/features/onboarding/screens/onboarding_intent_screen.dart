@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../core/services/analytics_service.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
@@ -40,6 +41,7 @@ class _OnboardingIntentScreenState extends State<OnboardingIntentScreen> {
   void initState() {
     super.initState();
     print('[OnboardingIntent] Screen shown — not wired to flow yet');
+    unawaited(AnalyticsService.screen('onboarding_intent'));
   }
 
   Future<void> _onContinue() async {
@@ -59,6 +61,7 @@ class _OnboardingIntentScreenState extends State<OnboardingIntentScreen> {
     } catch (e) {
       print('[OnboardingIntent] Failed to save intent: $e — continuing anyway');
     }
+    unawaited(AnalyticsService.intentSelected(selected));
     if (mounted) context.go(AppRoutes.onboardingOnb3);
   }
 

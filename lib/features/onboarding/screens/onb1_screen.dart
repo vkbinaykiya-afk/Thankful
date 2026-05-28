@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../core/services/analytics_service.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
@@ -66,6 +69,7 @@ class _Onb1ScreenState extends State<Onb1Screen>
       end: 0,
     ).animate(curved);
     _entranceController.forward();
+    unawaited(AnalyticsService.screen('onboarding_how_it_works'));
   }
 
   @override
@@ -199,7 +203,15 @@ class _Onb1ScreenState extends State<Onb1Screen>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   GestureDetector(
-                    onTap: () => context.go(AppRoutes.onboardingOnb2),
+                    onTap: () {
+                      unawaited(
+                        AnalyticsService.onboardingStepCompleted(
+                          2,
+                          'how_it_works',
+                        ),
+                      );
+                      context.go(AppRoutes.onboardingOnb2);
+                    },
                     child: Container(
                       height: 48,
                       alignment: Alignment.center,

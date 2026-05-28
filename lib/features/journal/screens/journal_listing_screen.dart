@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/feature_flags.dart';
+import '../../../core/services/analytics_service.dart';
 import '../../../core/services/share_card_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/entry_row_parser.dart';
@@ -80,6 +81,8 @@ class _JournalListingScreenState extends State<JournalListingScreen> {
         }
       });
     }
+    unawaited(AnalyticsService.screen('journal_listing'));
+    unawaited(AnalyticsService.journalListingViewed());
     unawaited(_fetchEntries());
   }
 
@@ -296,8 +299,8 @@ class _JournalListingScreenState extends State<JournalListingScreen> {
       onPlay: FeatureFlags.entryAudioPlayback && hasAudio
           ? () => unawaited(_togglePlay(entry.id, entry.audioUrl!))
           : null,
-      onShare: () => unawaited(
-            const ShareCardService().shareEntry(
+      onShare: () => unawaited(() async {
+            await const ShareCardService().shareEntry(
               context: context,
               highlightQuote: entry.highlightQuote,
               summary: entry.summary,
@@ -306,8 +309,14 @@ class _JournalListingScreenState extends State<JournalListingScreen> {
               userName: _currentUserName,
               createdAt: entry.createdAt,
               sharePositionOrigin: Rect.fromLTWH(0, 0, 100, 100),
-            ),
-          ),
+            );
+            unawaited(
+              AnalyticsService.entryShared(
+                entry.highlightQuote != null &&
+                    entry.highlightQuote!.trim().isNotEmpty,
+              ),
+            );
+          }()),
     );
   }
 

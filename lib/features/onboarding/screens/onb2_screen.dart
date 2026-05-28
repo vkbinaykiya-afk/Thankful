@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../core/services/analytics_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -12,14 +15,29 @@ import '../../../shared/widgets/onboarding_progress_bar.dart';
 import '../../../shared/widgets/thankful_app_title.dart';
 
 /// Microphone permission — matches `docs/reference/design_htmls/onb2_screen.html`.
-class Onb2Screen extends StatelessWidget {
+class Onb2Screen extends StatefulWidget {
   const Onb2Screen({super.key});
 
+  static const int totalSteps = 7;
+  static const int currentStep = 3;
+
+  @override
+  State<Onb2Screen> createState() => _Onb2ScreenState();
+}
+
+class _Onb2ScreenState extends State<Onb2Screen> {
   static const String _micRequiredMessage =
       'Microphone access is required to record journal entries. '
       'Please enable it in Settings.';
 
+  @override
+  void initState() {
+    super.initState();
+    unawaited(AnalyticsService.screen('onboarding_mic_permission'));
+  }
+
   void _goOnb3(BuildContext context) {
+    unawaited(AnalyticsService.onboardingStepCompleted(3, 'mic_permission'));
     if (context.mounted) {
       context.go(AppRoutes.onboardingLhamoIntro);
     }
@@ -27,6 +45,7 @@ class Onb2Screen extends StatelessWidget {
 
   Future<void> _showMicRequiredDialog(BuildContext context) async {
     if (!context.mounted) return;
+    unawaited(AnalyticsService.micPermissionDenied());
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
@@ -51,6 +70,7 @@ class Onb2Screen extends StatelessWidget {
   }
 
   Future<void> _onAllowMicrophone(BuildContext context) async {
+    unawaited(AnalyticsService.onboardingStepCompleted(3, 'mic_permission'));
     var status = await Permission.microphone.status;
     if (!context.mounted) return;
 
@@ -90,9 +110,6 @@ class Onb2Screen extends StatelessWidget {
     if (!context.mounted) return;
     await _showMicRequiredDialog(context);
   }
-
-  static const int totalSteps = 7;
-  static const int currentStep = 3;
 
   /// HTML `.dot` inactive fill (non-active pills).
   static const Color _dotIdle = Color(0xFFD8D2CA);

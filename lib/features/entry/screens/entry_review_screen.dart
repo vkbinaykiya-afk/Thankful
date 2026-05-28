@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../app/app_routes.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../../core/onboarding/onboarding_progress_visibility.dart';
+import '../../../core/services/analytics_service.dart';
 import '../../../core/services/audio_upload_service.dart';
 import '../../../core/services/entry_enrichment_service.dart';
 import '../../../core/services/streak_service.dart';
@@ -146,6 +147,7 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
     _playerStateSub = _player.playerStateStream.listen((_) {
       if (mounted) setState(() {});
     });
+    unawaited(AnalyticsService.screen('entry_review'));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_loadAudioSourceThenTranscribe());
     });
@@ -544,6 +546,16 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
       }
       await Supabase.instance.client.from('entries').insert(row);
       await const StreakService().updateStreakAfterEntry(user.id);
+      unawaited(
+        AnalyticsService.entrySaved(
+          hasHighlightQuote: _enrichment?.highlightQuote != null,
+          mood: _enrichment?.mood,
+          tagCount: _enrichment?.tags.length ?? 0,
+        ),
+      );
+      if (_showOnboardingProgress) {
+        unawaited(AnalyticsService.onboardingCompleted());
+      }
       if (!mounted) return;
       setState(() => _isSaving = false);
       if (_showOnboardingProgress) {

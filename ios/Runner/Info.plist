@@ -39,6 +39,14 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Thankful needs microphone access to record your journal entries</string>
+	<key>com.posthog.posthog.PROJECT_TOKEN</key>
+	<string>phc_kz7LavJBf7ZVweu9s7gNXEKxGHPzcRekpwCrRbmgyqhA</string>
+	<key>com.posthog.posthog.POSTHOG_HOST</key>
+	<string>https://us.i.posthog.com</string>
+	<key>com.posthog.posthog.CAPTURE_APPLICATION_LIFECYCLE_EVENTS</key>
+	<true/>
+	<key>com.posthog.posthog.DEBUG</key>
+	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

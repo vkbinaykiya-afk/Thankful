@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../core/services/analytics_service.dart';
 import '../../../core/services/subscription_service.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/onboarding/onboarding_progress_visibility.dart';
@@ -62,6 +63,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
   @override
   void initState() {
     super.initState();
+    unawaited(AnalyticsService.screen('paywall'));
     unawaited(_resolveOnboardingProgress());
     unawaited(_redirectIfAlreadySubscribed());
     unawaited(_loadOffering());
@@ -87,6 +89,11 @@ class _PaywallScreenState extends State<PaywallScreen> {
     setState(() {
       _showOnboardingProgress = widget.showOnboardingProgress && fromDb;
     });
+    unawaited(
+      AnalyticsService.paywallViewed(
+        _showOnboardingProgress ? 'onboarding' : 'session_gate',
+      ),
+    );
   }
 
   /// Subscribers who land on paywall (e.g. 5-entry gate) should not loop here.
@@ -196,6 +203,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
       }
       if (!mounted) return;
       if (outcome.success) {
+        final plan = _selectedPlan == 0 ? 'monthly' : 'annual';
+        unawaited(AnalyticsService.subscriptionPurchased(plan));
         print('[Paywall] Purchase successful — leaving paywall');
         await _leavePaywallToHome();
       } else if (!outcome.cancelled && outcome.message != null) {
@@ -211,6 +220,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
     try {
       final success = await const SubscriptionService().restorePurchases();
       if (!mounted) return;
+      unawaited(AnalyticsService.restoreAttempted(success));
       if (success) {
         print('[Paywall] Restore successful — leaving paywall');
         await _leavePaywallToHome();

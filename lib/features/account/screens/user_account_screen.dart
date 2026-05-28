@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../core/constants/feature_flags.dart';
+import '../../../core/services/analytics_service.dart';
 import '../../../core/services/subscription_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../widgets/subscription_debug_sheet.dart';
@@ -32,6 +35,7 @@ class _UserAccountScreenState extends State<UserAccountScreen> {
   @override
   void initState() {
     super.initState();
+    unawaited(AnalyticsService.screen('account'));
     _refreshSubscription();
   }
 

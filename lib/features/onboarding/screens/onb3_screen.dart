@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../../core/services/analytics_service.dart';
 import '../../../core/services/subscription_service.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
@@ -49,6 +50,7 @@ class _Onb3ScreenState extends State<Onb3Screen>
       end: 0,
     ).animate(curved);
     _entranceController.forward();
+    unawaited(AnalyticsService.screen('onboarding_start_entry'));
   }
 
   @override
@@ -58,6 +60,7 @@ class _Onb3ScreenState extends State<Onb3Screen>
   }
 
   Future<void> _checkMicAndNavigate(BuildContext context) async {
+    unawaited(AnalyticsService.onboardingStepCompleted(5, 'start_entry'));
     final status = await Permission.microphone.status;
     print('[MicCheck] status: $status');
     if (status.isGranted) {
@@ -88,6 +91,7 @@ class _Onb3ScreenState extends State<Onb3Screen>
   }
 
   void _showMicDeniedDialog(BuildContext context) {
+    unawaited(AnalyticsService.micPermissionDenied());
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(

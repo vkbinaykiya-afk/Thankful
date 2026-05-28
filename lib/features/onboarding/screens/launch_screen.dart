@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../core/services/analytics_service.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -49,6 +50,7 @@ class _LaunchScreenState extends State<LaunchScreen>
       end: 0,
     ).animate(curved);
     _entranceController.forward();
+    unawaited(AnalyticsService.screen('launch'));
 
     _pageController = PageController();
 

@@ -12,6 +12,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/app_routes.dart';
 import 'core/router/go_router_refresh_stream.dart';
+import 'core/services/analytics_service.dart';
 import 'core/services/subscription_service.dart';
 import 'core/services/supabase_service.dart';
 import 'core/theme/app_theme.dart';
@@ -346,9 +347,16 @@ Future<void> main() async {
         if ((data.event == AuthChangeEvent.signedIn ||
                 data.event == AuthChangeEvent.initialSession) &&
             data.session?.user.id != null) {
+          final userId = data.session!.user.id;
           await SubscriptionService.ensureRevenueCatUserLinked();
+          await AnalyticsService.identify(
+            userId,
+            email: data.session?.user.email,
+            name: data.session?.user.userMetadata?['name']?.toString(),
+          );
         } else if (data.event == AuthChangeEvent.signedOut) {
           await Purchases.logOut();
+          await AnalyticsService.reset();
           print('[RevenueCat] Logged out');
         }
       } catch (e) {

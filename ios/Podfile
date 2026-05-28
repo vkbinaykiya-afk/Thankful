@@ -1,5 +1,4 @@
-# Match Flutter minimum (see CLAUDE.md / Xcode deployment target).
-platform :ios, '15.0'
+platform :ios, '13.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -43,7 +42,7 @@ post_install do |installer|
       # Xcode 26+ explicit modules break many CocoaPods Swift plugins.
       config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'
       config.build_settings['CLANG_ENABLE_EXPLICIT_MODULES'] = 'NO'
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.0'
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
       # permission_handler_apple: enable only permissions the app uses (see
       # https://github.com/Baseflow/flutter-permission-handler/blob/main/permission_handler_apple/ios/Classes/PermissionHandlerEnums.h).
       defs = config.build_settings['GCC_PREPROCESSOR_DEFINITIONS']

@@ -14,6 +14,7 @@ import 'package:record/record.dart';
 import '../../../app/app_routes.dart';
 import '../../../core/constants/convo_session_config.dart';
 import '../../../core/onboarding/onboarding_progress_visibility.dart';
+import '../../../core/services/analytics_service.dart';
 import '../../../core/services/cartesia_service.dart';
 import '../../../core/services/convo_audio_session.dart';
 import '../../../core/services/conversation_eval_service.dart';
@@ -366,6 +367,7 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
   }
 
   Future<void> _startSession() async {
+    unawaited(AnalyticsService.sessionStarted());
     await ConvoAudioSession.activateForVoiceSession();
     unawaited(_startBgMusic());
     if (mounted) {
@@ -628,6 +630,11 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     _windingDown = true;
 
     print('_windDownAndClose called isEarly=$isEarly');
+    if (isEarly) {
+      unawaited(AnalyticsService.sessionExitedEarly(_exchangeCount));
+    } else {
+      unawaited(AnalyticsService.sessionCompleted(_exchangeCount));
+    }
     _userTurn = false;
     _awaitingUserSpeech = false;
     if (prefetchedClosing == null) {
@@ -711,6 +718,7 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     }
     if (!granted) {
       if (mounted) {
+        unawaited(AnalyticsService.micPermissionDenied());
         AppSnackBar.show(
           context,
           'Microphone permission is required.',

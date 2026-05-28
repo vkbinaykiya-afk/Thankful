@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../core/services/analytics_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -131,6 +133,7 @@ class CancelConfirmScreen extends StatelessWidget {
                   SecondaryButton(
                     label: 'Cancel anyway',
                     onPressed: () async {
+                      unawaited(AnalyticsService.cancelSubscriptionTapped());
                       print(
                         '[CancelConfirm] Cancel anyway tapped — opening Apple subscription management',
                       );

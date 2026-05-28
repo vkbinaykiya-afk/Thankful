@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../core/services/analytics_service.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -19,7 +20,7 @@ import '../google_auth_helpers.dart';
 /// Same chrome as [SignupScreen] (title, monk, hairline, ticker) — login headline/footer.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
-
+  
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
@@ -53,6 +54,7 @@ class _LoginScreenState extends State<LoginScreen>
       end: 0,
     ).animate(curved);
     _entranceController.forward();
+    unawaited(AnalyticsService.screen('login'));
 
     _pageController = PageController();
 

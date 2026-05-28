@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../core/constants/feature_flags.dart';
+import '../../../core/services/analytics_service.dart';
 import '../../../core/services/share_card_service.dart';
 import '../../../core/services/subscription_service.dart';
 import '../../../core/services/supabase_service.dart';
@@ -149,6 +150,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    unawaited(AnalyticsService.screen('home'));
     if (FeatureFlags.entryAudioPlayback) {
       final player = AudioPlayer();
       _audioPlayer = player;
@@ -416,6 +418,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showMicDeniedDialog(BuildContext context) {
+    unawaited(AnalyticsService.micPermissionDenied());
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -498,18 +501,24 @@ class _HomeScreenState extends State<HomeScreen> {
                 _togglePlay(entryId, audioRaw.toString()),
               )
           : null,
-      onShare: () => unawaited(
-            const ShareCardService().shareEntry(
+      onShare: () => unawaited(() async {
+            final highlight = entry['highlight_quote']?.toString();
+            await const ShareCardService().shareEntry(
               context: context,
-              highlightQuote: entry['highlight_quote']?.toString(),
+              highlightQuote: highlight,
               summary: parseEntryString(entry['summary']),
               tags: parseEntryTags(entry['tags']),
               mood: parseEntryString(entry['mood']),
               userName: _currentUserName,
               createdAt: created,
               sharePositionOrigin: Rect.fromLTWH(0, 0, 100, 100),
-            ),
-          ),
+            );
+            unawaited(
+              AnalyticsService.entryShared(
+                highlight != null && highlight.trim().isNotEmpty,
+              ),
+            );
+          }()),
     );
   }
 
@@ -523,6 +532,7 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Make another entry',
             onPressed: () => unawaited(() async {
               try {
+                unawaited(AnalyticsService.makeAnotherEntryTapped());
                 await _checkMicAndNavigate(context);
               } catch (_) {
                 AppSnackBar.show(

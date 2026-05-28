@@ -25,7 +25,7 @@ dependencies:
   flutter_dotenv: ^5.1.0
   google_sign_in: ^7.2.0
   sign_in_with_apple: ^6.1.0
-  posthog_flutter: ^4.0.0
+  posthog_flutter: ^5.24.0
   sentry_flutter: ^8.14.0
   shared_preferences: ^2.2.2
   provider: ^6.1.2
@@ -41,13 +41,13 @@ dev_dependencies:
   flutter_launcher_icons: ^0.13.1
   flutter_native_splash: ^2.3.9
 
-# path_provider_foundation 2.6.0+ bundles objective_c via FFI; App Store rejects
-# IOSSIMULATOR markers in release IPAs (Transporter error 91169). Revert to plugin impl.
 flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/icons/app icon.png"
 
+# path_provider_foundation 2.6.0+ bundles objective_c via FFI; App Store rejects
+# IOSSIMULATOR markers in release IPAs (Transporter error 91169). Revert to plugin impl.
 dependency_overrides:
   path_provider_foundation: 2.5.1
 

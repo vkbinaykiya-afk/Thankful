@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../core/services/analytics_service.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -47,6 +50,7 @@ class _OnboardingLhamoIntroScreenState extends State<OnboardingLhamoIntroScreen>
       end: 0,
     ).animate(curved);
     _entranceController.forward();
+    unawaited(AnalyticsService.screen('onboarding_lhamo_intro'));
   }
 
   @override
@@ -138,7 +142,15 @@ class _OnboardingLhamoIntroScreenState extends State<OnboardingLhamoIntroScreen>
                 children: [
                   PrimaryButton(
                     label: 'Continue',
-                    onPressed: () => context.go(AppRoutes.onboardingOnb3),
+                    onPressed: () {
+                      unawaited(
+                        AnalyticsService.onboardingStepCompleted(
+                          4,
+                          'lhamo_intro',
+                        ),
+                      );
+                      context.go(AppRoutes.onboardingOnb3);
+                    },
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Center(
