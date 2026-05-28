@@ -21,8 +21,10 @@ import '../../../core/services/deepgram_service.dart';
 import '../../../core/services/lhamo_service.dart';
 import '../../../core/services/subscription_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../shared/widgets/app_snack_bar.dart';
 import '../../../shared/widgets/onboarding_progress_bar.dart';
 import '../../../shared/widgets/primary_button.dart';
 import '../../../shared/widgets/thankful_app_title.dart';
@@ -147,9 +149,39 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
       } catch (e, st) {
         print('Convo startup failed: $e\n$st');
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(ConvoAudioSession.messageForError(e)),
+          print('[EdgeState] convo startup failure dialog shown');
+          showDialog<void>(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              backgroundColor: AppColors.background,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.xl),
+              ),
+              title: Text(
+                'Could not start session',
+                style: AppTextStyles.heading3,
+              ),
+              content: Text(
+                'Check your internet connection and try again.',
+                style: AppTextStyles.body.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    this.context.go(AppRoutes.home);
+                  },
+                  child: Text(
+                    'Go back',
+                    style: AppTextStyles.body.copyWith(
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+              ],
             ),
           );
         }
@@ -358,8 +390,10 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     } catch (e, st) {
       print('Lhamo opening failed: $e\n$st');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(ConvoAudioSession.messageForError(e))),
+        AppSnackBar.show(
+          context,
+          ConvoAudioSession.messageForError(e),
+          isError: true,
         );
       }
     }
@@ -387,8 +421,10 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     } catch (e, st) {
       print('Audio session before listen failed: $e\n$st');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(ConvoAudioSession.messageForError(e))),
+        AppSnackBar.show(
+          context,
+          ConvoAudioSession.messageForError(e),
+          isError: true,
         );
       }
       return;
@@ -411,8 +447,10 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
         setState(_syncConvoState);
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not start listening: $e')),
+        AppSnackBar.show(
+          context,
+          'Could not start listening: $e',
+          isError: true,
         );
       }
       return;
@@ -512,8 +550,10 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     } catch (e) {
       print('Lhamo response failed: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Conversation error: $e')),
+        AppSnackBar.show(
+          context,
+          'Conversation error: $e',
+          isError: true,
         );
         _userTurn = true;
         await _beginListeningForUser();
@@ -558,8 +598,10 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     final path = await _writeSessionWavFile();
     if (!mounted) return;
     if (path == null || path.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No recording file was produced.')),
+      AppSnackBar.show(
+        context,
+        'No recording file was produced.',
+        isError: true,
       );
       return;
     }
@@ -669,8 +711,10 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     }
     if (!granted) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Microphone permission is required.')),
+        AppSnackBar.show(
+          context,
+          'Microphone permission is required.',
+          isError: true,
         );
       }
       return false;
@@ -680,10 +724,10 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     final encoderSupported = await _recorder.isEncoderSupported(encoder);
     if (!encoderSupported) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('PCM streaming is not supported on this device.'),
-          ),
+        AppSnackBar.show(
+          context,
+          'PCM streaming is not supported on this device.',
+          isError: true,
         );
       }
       return false;
@@ -732,8 +776,10 @@ class _OnboardingConvoScreenState extends State<OnboardingConvoScreen>
     } catch (e) {
       print('Recording start failed: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not start recording: $e')),
+        AppSnackBar.show(
+          context,
+          'Could not start recording: $e',
+          isError: true,
         );
       }
     }

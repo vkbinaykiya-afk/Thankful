@@ -15,6 +15,7 @@ import '../../../core/utils/entry_row_parser.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../shared/widgets/app_snack_bar.dart';
 import '../../../shared/widgets/journal_entry_card.dart';
 
 /// Matches `docs/reference/design_htmls/Journal listing.html`.
@@ -28,6 +29,7 @@ class JournalListingScreen extends StatefulWidget {
 class _JournalListingScreenState extends State<JournalListingScreen> {
   List<_JournalDateGroup> _groups = [];
   bool _isLoading = true;
+  bool _fetchError = false;
   String _currentUserName = 'Someone';
 
   AudioPlayer? _audioPlayer;
@@ -98,6 +100,7 @@ class _JournalListingScreenState extends State<JournalListingScreen> {
         setState(() {
           _groups = [];
           _isLoading = false;
+          _fetchError = false;
         });
       }
       return;
@@ -109,6 +112,7 @@ class _JournalListingScreenState extends State<JournalListingScreen> {
         setState(() {
           _groups = [];
           _isLoading = false;
+          _fetchError = false;
         });
       }
       return;
@@ -131,11 +135,14 @@ class _JournalListingScreenState extends State<JournalListingScreen> {
       setState(() {
         _groups = _groupEntries(list);
         _isLoading = false;
+        _fetchError = false;
       });
-    } catch (_) {
+    } catch (e) {
+      print('[EdgeState] journal fetch failed: $e');
       if (!mounted) return;
       setState(() {
         _groups = [];
+        _fetchError = true;
         _isLoading = false;
       });
     }
@@ -266,8 +273,10 @@ class _JournalListingScreenState extends State<JournalListingScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _playingEntryId = null);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not play recording: $e')),
+        AppSnackBar.show(
+          context,
+          'Could not play recording: $e',
+          isError: true,
         );
       }
     }
@@ -356,6 +365,37 @@ class _JournalListingScreenState extends State<JournalListingScreen> {
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
+                  : _fetchError
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Could not load journal',
+                                style: AppTextStyles.caption.copyWith(
+                                  color: AppColors.textTertiary,
+                                ),
+                              ),
+                              SizedBox(height: AppSpacing.xs),
+                              GestureDetector(
+                                onTap: () {
+                                  print('[EdgeState] journal retry tapped');
+                                  setState(() {
+                                    _fetchError = false;
+                                    _isLoading = true;
+                                  });
+                                  unawaited(_fetchEntries());
+                                },
+                                child: Text(
+                                  'Tap to retry',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
                   : _groups.isEmpty
                       ? Center(
                           child: Text(

@@ -12,6 +12,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../shared/widgets/app_snack_bar.dart';
 import '../../../shared/widgets/onboarding_progress_bar.dart';
 import '../../../shared/widgets/primary_button.dart';
 
@@ -157,9 +158,11 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
   void _showPaywallMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
+    AppSnackBar.show(
       context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+      message,
+      isError: true,
+    );
   }
 
   Future<void> _onPurchaseTapped() async {
@@ -212,10 +215,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
         print('[Paywall] Restore successful — leaving paywall');
         await _leavePaywallToHome();
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No active subscription found to restore.'),
-          ),
+        AppSnackBar.show(
+          context,
+          'No active subscription found to restore.',
         );
       }
     } finally {

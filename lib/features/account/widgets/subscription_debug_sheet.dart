@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../shared/widgets/app_snack_bar.dart';
 
 /// Opens the subscription / RevenueCat debug bottom sheet from Account.
 Future<void> showSubscriptionDebugSheet(BuildContext context) {
@@ -66,8 +67,9 @@ class _SubscriptionDebugSheetState extends State<_SubscriptionDebugSheet> {
     if (text == null || text.isEmpty) return;
     await Clipboard.setData(ClipboardData(text: text));
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Debug info copied')),
+    AppSnackBar.show(
+      context,
+      'Debug info copied',
     );
   }
 

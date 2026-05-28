@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../app/app_routes.dart';
@@ -15,8 +16,10 @@ import '../../../core/services/subscription_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/entry_row_parser.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../shared/widgets/app_snack_bar.dart';
 import '../../../shared/widgets/journal_entry_card.dart';
 import '../../../shared/widgets/monk_mascot.dart';
 import '../../../shared/widgets/primary_button.dart';
@@ -141,6 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _expandedEntryId;
   StreamSubscription<PlayerState>? _playerStateSub;
   int? _sessionsRemaining;
+  bool _fetchError = false;
 
   @override
   void initState() {
@@ -214,8 +218,10 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _playingEntryId = null);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not play recording: $e')),
+        AppSnackBar.show(
+          context,
+          'Could not play recording: $e',
+          isError: true,
         );
       }
     }
@@ -242,6 +248,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _longestStreak = 0;
           _totalEntryCount = 0;
           _loggedDays = {};
+          _fetchError = false;
         });
       }
       return;
@@ -257,6 +264,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _longestStreak = 0;
           _totalEntryCount = 0;
           _loggedDays = {};
+          _fetchError = false;
         });
       }
       return;
@@ -335,6 +343,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _totalEntryCount = totalCount;
         _loggedDays = loggedDays;
         _isLoading = false;
+        _fetchError = false;
       });
 
       final remaining = await const SubscriptionService().sessionsRemaining();
@@ -342,7 +351,8 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() => _sessionsRemaining = remaining);
         print('[Subscription] sessionsRemaining: $_sessionsRemaining');
       }
-    } catch (_) {
+    } catch (e) {
+      print('[EdgeState] home fetch failed: $e');
       if (!mounted) return;
       setState(() {
         _todayEntries = [];
@@ -350,9 +360,98 @@ class _HomeScreenState extends State<HomeScreen> {
         _longestStreak = 0;
         _totalEntryCount = 0;
         _loggedDays = {};
+        _fetchError = true;
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _checkMicAndNavigate(BuildContext context) async {
+    final isOnline = await _hasInternetConnection();
+    if (!isOnline) {
+      print('[EdgeState] home make another entry blocked - offline');
+      if (!context.mounted) return;
+      AppSnackBar.show(
+        context,
+        'No internet connection. Please try again.',
+        isError: true,
+      );
+      return;
+    }
+
+    final status = await Permission.microphone.status;
+    print('[MicCheck] status: $status');
+    if (status.isGranted) {
+      print('[EdgeState] home mic granted - navigating');
+      await SubscriptionService.navigateToSessionOrPaywall(context);
+      return;
+    }
+    if (status.isPermanentlyDenied) {
+      print('[EdgeState] home mic permanently denied');
+      _showMicDeniedDialog(context);
+      return;
+    }
+    final result = await Permission.microphone.request();
+    print('[MicCheck] request result: $result');
+    if (result.isGranted) {
+      print('[EdgeState] home mic granted after request - navigating');
+      await SubscriptionService.navigateToSessionOrPaywall(context);
+    } else {
+      print('[EdgeState] home mic denied after request');
+      _showMicDeniedDialog(context);
+    }
+  }
+
+  Future<bool> _hasInternetConnection() async {
+    try {
+      final result = await InternetAddress.lookup(
+        'example.com',
+      ).timeout(const Duration(seconds: 2));
+      return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
+    } on SocketException {
+      return false;
+    } on TimeoutException {
+      return false;
+    }
+  }
+
+  void _showMicDeniedDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.background,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+        ),
+        title: Text(
+          'Microphone access needed',
+          style: AppTextStyles.heading3,
+        ),
+        content: Text(
+          'Thankful needs microphone access to hear you. Please enable it in Settings.',
+          style: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Not now',
+              style: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await openAppSettings();
+            },
+            child: Text(
+              'Open Settings',
+              style: AppTextStyles.body.copyWith(color: AppColors.primary),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   static int _asInt(dynamic v) {
@@ -422,9 +521,17 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           PrimaryButton(
             label: 'Make another entry',
-            onPressed: () => unawaited(
-              SubscriptionService.navigateToSessionOrPaywall(context),
-            ),
+            onPressed: () => unawaited(() async {
+              try {
+                await _checkMicAndNavigate(context);
+              } catch (_) {
+                AppSnackBar.show(
+                  context,
+                  'No internet connection. Please try again.',
+                  isError: true,
+                );
+              }
+            }()),
           ),
           if (_sessionsRemaining != null &&
               _sessionsRemaining! <= 2 &&
@@ -448,6 +555,39 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildEntriesZone(BoxConstraints constraints) {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_fetchError) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Could not load entries',
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.textTertiary,
+              ),
+            ),
+            SizedBox(height: AppSpacing.xs),
+            GestureDetector(
+              onTap: () {
+                print('[EdgeState] home retry tapped');
+                setState(() {
+                  _fetchError = false;
+                  _isLoading = true;
+                });
+                unawaited(_fetchTodayEntries());
+              },
+              child: Text(
+                'Tap to retry',
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
     if (_todayEntries.isEmpty) {
@@ -685,8 +825,28 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         Text('Today', style: sectionStyle),
                         GestureDetector(
-                          onTap: () =>
-                              context.push(AppRoutes.journalListing),
+                          onTap: () async {
+                            try {
+                              final isOnline = await _hasInternetConnection();
+                              if (!isOnline) {
+                                print('[EdgeState] home view all blocked - offline');
+                                if (!context.mounted) return;
+                                AppSnackBar.show(
+                                  context,
+                                  'No internet connection. Please try again.',
+                                  isError: true,
+                                );
+                                return;
+                              }
+                              context.push(AppRoutes.journalListing);
+                            } catch (_) {
+                              AppSnackBar.show(
+                                context,
+                                'No internet connection. Please try again.',
+                                isError: true,
+                              );
+                            }
+                          },
                           child: Text('View all', style: viewAllStyle),
                         ),
                       ],

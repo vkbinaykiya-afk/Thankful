@@ -8,6 +8,7 @@ import '../../../app/app_routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../shared/widgets/app_snack_bar.dart';
 import '../../../shared/widgets/primary_button.dart';
 import '../../../shared/widgets/secondary_button.dart';
 
@@ -143,12 +144,10 @@ class CancelConfirmScreen extends StatelessWidget {
                         );
                       } else {
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Go to iOS Settings → Apple ID → Subscriptions to cancel.',
-                              ),
-                            ),
+                          AppSnackBar.show(
+                            context,
+                            'Go to iOS Settings → Apple ID → Subscriptions to cancel.',
+                            isError: true,
                           );
                         }
                       }

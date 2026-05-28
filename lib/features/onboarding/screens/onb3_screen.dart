@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/services/subscription_service.dart';
 import '../../../core/constants/app_constants.dart';
@@ -54,6 +55,75 @@ class _Onb3ScreenState extends State<Onb3Screen>
   void dispose() {
     _entranceController.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkMicAndNavigate(BuildContext context) async {
+    final status = await Permission.microphone.status;
+    print('[MicCheck] status: $status');
+    if (status.isGranted) {
+      print('[EdgeState] onb3 mic granted - navigating');
+      await SubscriptionService.navigateToSessionOrPaywall(
+        context,
+        paywallOnboardingProgress: true,
+      );
+      return;
+    }
+    if (status.isPermanentlyDenied) {
+      print('[EdgeState] onb3 mic permanently denied');
+      _showMicDeniedDialog(context);
+      return;
+    }
+    final result = await Permission.microphone.request();
+    print('[MicCheck] request result: $result');
+    if (result.isGranted) {
+      print('[EdgeState] onb3 mic granted after request - navigating');
+      await SubscriptionService.navigateToSessionOrPaywall(
+        context,
+        paywallOnboardingProgress: true,
+      );
+    } else {
+      print('[EdgeState] onb3 mic denied after request');
+      _showMicDeniedDialog(context);
+    }
+  }
+
+  void _showMicDeniedDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.background,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+        ),
+        title: Text(
+          'Microphone access needed',
+          style: AppTextStyles.heading3,
+        ),
+        content: Text(
+          'Thankful needs microphone access to hear you. Please enable it in Settings.',
+          style: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Not now',
+              style: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await openAppSettings();
+            },
+            child: Text(
+              'Open Settings',
+              style: AppTextStyles.body.copyWith(color: AppColors.primary),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -146,12 +216,7 @@ class _Onb3ScreenState extends State<Onb3Screen>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   GestureDetector(
-                    onTap: () => unawaited(
-                      SubscriptionService.navigateToSessionOrPaywall(
-                        context,
-                        paywallOnboardingProgress: true,
-                      ),
-                    ),
+                    onTap: () => unawaited(_checkMicAndNavigate(context)),
                     child: Container(
                       height: 48,
                       alignment: Alignment.center,

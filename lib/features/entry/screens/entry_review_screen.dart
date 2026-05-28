@@ -21,6 +21,7 @@ import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/formatted_transcript.dart';
+import '../../../shared/widgets/app_snack_bar.dart';
 import '../../../shared/widgets/monk_mascot.dart';
 import '../../../shared/widgets/onboarding_progress_bar.dart';
 import '../../../shared/widgets/primary_button.dart';
@@ -94,6 +95,7 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
 
   int _loadingMessageIndex = 0;
   Timer? _loadingMessageTimer;
+  bool _hasShownEmptySpeechHint = false;
 
   @override
   void initState() {
@@ -176,6 +178,26 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
     );
   }
 
+  bool _hasUserSpeech(String? transcript) {
+    final userLines = (transcript ?? '')
+        .split('\n')
+        .where((l) => l.trim().startsWith('You:'))
+        .toList();
+    return userLines.isNotEmpty;
+  }
+
+  void _maybeShowEmptySpeechHint() {
+    if (!mounted || _hasShownEmptySpeechHint) return;
+    if (_hasUserSpeech(_transcript)) return;
+    _hasShownEmptySpeechHint = true;
+    print('[EdgeState] entry review empty speech hint shown on load');
+    AppSnackBar.show(
+      context,
+      'It seems you did not speak during the session.',
+      isError: true,
+    );
+  }
+
   Future<void> _resolveOnboardingProgress() async {
     final show = await OnboardingProgressVisibility.shouldShowProgressStrip();
     if (!mounted) return;
@@ -219,6 +241,7 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
         _transcript = text;
         _transcriptionError = null;
       });
+      _maybeShowEmptySpeechHint();
       print('Raw transcript for enrichment: $_transcript');
       await _runEnrichment(text);
     } catch (e) {
@@ -272,6 +295,7 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
         _transcript = enrichment.formattedTranscript;
         _isEnriching = false;
       });
+      _maybeShowEmptySpeechHint();
       _stopLoadingMessages();
       _triggerRevealAnimation();
     } catch (e) {
@@ -282,6 +306,7 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
         _transcript = rawTranscript;
         _isEnriching = false;
       });
+      _maybeShowEmptySpeechHint();
       _stopLoadingMessages();
       _triggerRevealAnimation();
     }
@@ -370,13 +395,10 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
     final file = File(path);
     if (!await file.exists()) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Recording file not found. It may have been deleted, or the '
-              'path was lost in navigation.\n$path',
-            ),
-          ),
+        AppSnackBar.show(
+          context,
+          'Recording file not found. It may have been deleted, or the path was lost in navigation.\n$path',
+          isError: true,
         );
       }
       return false;
@@ -391,8 +413,10 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
       return true;
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open recording for playback: $e')),
+        AppSnackBar.show(
+          context,
+          'Could not open recording for playback: $e',
+          isError: true,
         );
       }
       return false;
@@ -412,9 +436,11 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
+        AppSnackBar.show(
           context,
-        ).showSnackBar(SnackBar(content: Text('Playback error: $e')));
+          'Playback error: $e',
+          isError: true,
+        );
       }
     }
     if (mounted) setState(() {});
@@ -458,30 +484,29 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
     final localPath = _recordingPath;
     if (localPath == null || localPath.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
+      AppSnackBar.show(
         context,
-      ).showSnackBar(const SnackBar(content: Text('No recording to save.')));
+        'No recording to save.',
+        isError: true,
+      );
       return;
     }
 
     if (_isTranscribing || _isEnriching) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please wait for your entry to finish preparing.'),
-        ),
+      AppSnackBar.show(
+        context,
+        'Please wait for your entry to finish preparing.',
       );
       return;
     }
 
     if (!SupabaseService.isInitialized) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Supabase is not configured. Cannot save this entry yet.',
-          ),
-        ),
+      AppSnackBar.show(
+        context,
+        'Supabase is not configured. Cannot save this entry yet.',
+        isError: true,
       );
       return;
     }
@@ -489,8 +514,10 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You must be signed in to save.')),
+      AppSnackBar.show(
+        context,
+        'You must be signed in to save.',
+        isError: true,
       );
       return;
     }
@@ -528,9 +555,11 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(
+      AppSnackBar.show(
         context,
-      ).showSnackBar(SnackBar(content: Text('Could not save entry: $e')));
+        'Could not save entry: $e',
+        isError: true,
+      );
     }
   }
 
