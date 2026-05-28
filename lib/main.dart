@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/app_routes.dart';
@@ -309,6 +310,20 @@ Future<void> main() async {
             ? AppRoutes.home
             : AppRoutes.onboardingOnb1;
         print('initialLocation: $initialLocation');
+      } else {
+        // Show launch screen only on first ever install
+        final prefs = await SharedPreferences.getInstance();
+        final hasLaunchedBefore =
+            prefs.getBool('has_launched_before') ?? false;
+        print('[Launch] has_launched_before: $hasLaunchedBefore');
+        if (!hasLaunchedBefore) {
+          await prefs.setBool('has_launched_before', true);
+          initialLocation = AppRoutes.launch;
+          print('[Launch] First install detected — showing launch screen');
+        } else {
+          initialLocation = AppRoutes.login;
+          print('[Launch] Returning unauthenticated user — showing login');
+        }
       }
     } catch (e, st) {
       if (kDebugMode) {

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../core/constants/feature_flags.dart';
+import '../../../core/services/subscription_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../widgets/subscription_debug_sheet.dart';
 import '../../../core/theme/app_colors.dart';
@@ -12,11 +14,26 @@ import '../../../shared/widgets/primary_button.dart';
 import '../models/subscription_state.dart';
 
 /// Account — styling aligned with `docs/reference/design_htmls/user_account_screen.html`.
-class UserAccountScreen extends StatelessWidget {
+class UserAccountScreen extends StatefulWidget {
   const UserAccountScreen({super.key});
 
-  /// TODO: replace with RevenueCat / backend-driven state.
-  static const SubscriptionState _subscriptionState = SubscriptionState.activePaid;
+  @override
+  State<UserAccountScreen> createState() => _UserAccountScreenState();
+}
+
+class _UserAccountScreenState extends State<UserAccountScreen> {
+  _SubscriptionViewData _subscriptionView = const _SubscriptionViewData(
+    state: SubscriptionState.lapsed,
+    planTitle: 'No active plan',
+    primaryLine: 'Checking subscription status...',
+  );
+  bool _loadingSubscription = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshSubscription();
+  }
 
   static String _displayName() {
     if (!SupabaseService.isInitialized) return 'Guest';
@@ -53,6 +70,126 @@ class UserAccountScreen extends StatelessWidget {
       await SupabaseService.client.auth.signOut();
     }
     if (context.mounted) context.go(AppRoutes.login);
+  }
+
+  Future<void> _refreshSubscription() async {
+    if (!mounted) return;
+    setState(() => _loadingSubscription = true);
+
+    try {
+      final service = const SubscriptionService();
+      final subscribed = await service.isSubscribed();
+      if (!subscribed) {
+        if (!mounted) return;
+        setState(() {
+          _subscriptionView = const _SubscriptionViewData(
+            state: SubscriptionState.lapsed,
+            planTitle: 'No active plan',
+            primaryLine: 'No active subscription found.',
+          );
+          _loadingSubscription = false;
+        });
+        return;
+      }
+
+      EntitlementInfo? entitlement;
+      try {
+        final info = await Purchases.getCustomerInfo();
+        entitlement =
+            info.entitlements.active[SubscriptionService.premiumEntitlementId];
+      } catch (_) {
+        // Keep best-effort fallback values below.
+      }
+
+      String planTitle = 'Active plan';
+      String primaryLine = 'Subscription active';
+      String? secondaryLine;
+
+      final productId = entitlement?.productIdentifier;
+      if (productId != null && productId.isNotEmpty) {
+        planTitle = _planTitleFromProductId(productId);
+        try {
+          final products = await Purchases.getProducts([productId]);
+          if (products.isNotEmpty) {
+            primaryLine =
+                '${products.first.priceString} / ${_periodFromProductId(productId)}';
+          }
+        } catch (_) {}
+      } else {
+        final plans = await service.loadPaywallPlans();
+        primaryLine = '${plans.annualYearlyPrice} / year';
+      }
+
+      final expiryRaw = entitlement?.expirationDate;
+      final expiry = expiryRaw == null ? null : DateTime.tryParse(expiryRaw);
+      if (expiry != null) {
+        secondaryLine = 'Renews ${_formatDate(expiry.toLocal())}';
+      } else {
+        secondaryLine = 'Auto-renews';
+      }
+
+      final isTrial = entitlement?.periodType.toString().contains('trial') ?? false;
+      final state = isTrial
+          ? SubscriptionState.activeTrial
+          : SubscriptionState.activePaid;
+      if (isTrial && expiry != null) {
+        secondaryLine = 'Free until ${_formatDate(expiry.toLocal())}';
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _subscriptionView = _SubscriptionViewData(
+          state: state,
+          planTitle: planTitle,
+          primaryLine: primaryLine,
+          secondaryLine: secondaryLine,
+        );
+        _loadingSubscription = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _subscriptionView = _SubscriptionViewData(
+          state: SubscriptionState.lapsed,
+          planTitle: 'No active plan',
+          primaryLine: 'Could not load subscription details.',
+          secondaryLine: '$e',
+        );
+        _loadingSubscription = false;
+      });
+    }
+  }
+
+  String _planTitleFromProductId(String productId) {
+    final id = productId.toLowerCase();
+    if (id.contains('annual') || id.contains('year')) return 'Annual';
+    if (id.contains('month')) return 'Monthly';
+    return 'Active plan';
+  }
+
+  String _periodFromProductId(String productId) {
+    final id = productId.toLowerCase();
+    if (id.contains('annual') || id.contains('year')) return 'year';
+    if (id.contains('month')) return 'month';
+    return 'period';
+  }
+
+  String _formatDate(DateTime d) {
+    const months = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[d.month - 1]} ${d.day}, ${d.year}';
   }
 
   @override
@@ -175,7 +312,11 @@ class UserAccountScreen extends StatelessWidget {
                     ),
                     SizedBox(height: AppSpacing.xs),
                     _SubscriptionCard(
-                      state: _subscriptionState,
+                      state: _subscriptionView.state,
+                      planTitle: _subscriptionView.planTitle,
+                      primaryLine: _subscriptionView.primaryLine,
+                      secondaryLine: _subscriptionView.secondaryLine,
+                      isLoading: _loadingSubscription,
                       onBuySubscription: () =>
                           context.push(AppRoutes.paywall),
                       onCancelPaid: () =>
@@ -235,12 +376,20 @@ class UserAccountScreen extends StatelessWidget {
 class _SubscriptionCard extends StatelessWidget {
   const _SubscriptionCard({
     required this.state,
+    required this.planTitle,
+    required this.primaryLine,
+    this.secondaryLine,
+    this.isLoading = false,
     required this.onBuySubscription,
     required this.onCancelPaid,
     required this.onCancelTrial,
   });
 
   final SubscriptionState state;
+  final String planTitle;
+  final String primaryLine;
+  final String? secondaryLine;
+  final bool isLoading;
   final VoidCallback onBuySubscription;
   final VoidCallback onCancelPaid;
   final VoidCallback onCancelTrial;
@@ -310,20 +459,33 @@ class _SubscriptionCard extends StatelessWidget {
 
   /// Paid: plan + Active badge, price line, renews line, divider, cancel subscription.
   Widget _buildActivePaid(BuildContext context) {
+    if (isLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+          child: CircularProgressIndicator(
+            color: AppColors.primary,
+            strokeWidth: 2,
+          ),
+        ),
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Annual', style: _planStyle),
+            Text(planTitle, style: _planStyle),
             _badgeActive('Active', AppColors.primary, AppColors.background),
           ],
         ),
         SizedBox(height: AppSpacing.xs),
-        Text(r'$44.99 / year', style: _primaryLineStyle),
-        SizedBox(height: AppSpacing.xs),
-        Text('Renews May 9, 2027', style: _secondaryLineStyle),
+        Text(primaryLine, style: _primaryLineStyle),
+        if (secondaryLine != null) ...[
+          SizedBox(height: AppSpacing.xs),
+          Text(secondaryLine!, style: _secondaryLineStyle),
+        ],
         SizedBox(height: AppSpacing.sm),
         Container(height: 0.5, color: AppColors.surfaceRaised),
         SizedBox(height: AppSpacing.sm),
@@ -346,23 +508,33 @@ class _SubscriptionCard extends StatelessWidget {
 
   /// Trial: plan + Trial badge, free-until line, then-pricing line, divider, cancel trial.
   Widget _buildActiveTrial(BuildContext context) {
+    if (isLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+          child: CircularProgressIndicator(
+            color: AppColors.primary,
+            strokeWidth: 2,
+          ),
+        ),
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Annual', style: _planStyle),
+            Text(planTitle, style: _planStyle),
             _badgeActive('Trial', AppColors.cta, AppColors.background),
           ],
         ),
         SizedBox(height: AppSpacing.xs),
-        Text('Free until May 14, 2026', style: _primaryLineStyle),
-        SizedBox(height: AppSpacing.xs),
-        Text(
-          r'Then $7.99 / month or $44.99 / year',
-          style: _secondaryLineStyle,
-        ),
+        Text(primaryLine, style: _primaryLineStyle),
+        if (secondaryLine != null) ...[
+          SizedBox(height: AppSpacing.xs),
+          Text(secondaryLine!, style: _secondaryLineStyle),
+        ],
         SizedBox(height: AppSpacing.sm),
         Container(height: 0.5, color: AppColors.surfaceRaised),
         SizedBox(height: AppSpacing.sm),
@@ -385,13 +557,24 @@ class _SubscriptionCard extends StatelessWidget {
 
   /// Lapsed: no plan + Lapsed badge, explanation line, buy CTA (no cancel row).
   Widget _buildLapsed(BuildContext context) {
+    if (isLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+          child: CircularProgressIndicator(
+            color: AppColors.primary,
+            strokeWidth: 2,
+          ),
+        ),
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('No active plan', style: _planStyle),
+            Text(planTitle, style: _planStyle),
             _badgeActive(
               'Lapsed',
               AppColors.surfaceRaised,
@@ -400,10 +583,11 @@ class _SubscriptionCard extends StatelessWidget {
           ],
         ),
         SizedBox(height: AppSpacing.xs),
-        Text(
-          'Your trial ended on May 2, 2026',
-          style: _primaryLineStyle,
-        ),
+        Text(primaryLine, style: _primaryLineStyle),
+        if (secondaryLine != null) ...[
+          SizedBox(height: AppSpacing.xs),
+          Text(secondaryLine!, style: _secondaryLineStyle),
+        ],
         Padding(
           padding: const EdgeInsets.only(top: AppSpacing.md),
           child: PrimaryButton(
@@ -414,4 +598,18 @@ class _SubscriptionCard extends StatelessWidget {
       ],
     );
   }
+}
+
+class _SubscriptionViewData {
+  const _SubscriptionViewData({
+    required this.state,
+    required this.planTitle,
+    required this.primaryLine,
+    this.secondaryLine,
+  });
+
+  final SubscriptionState state;
+  final String planTitle;
+  final String primaryLine;
+  final String? secondaryLine;
 }
