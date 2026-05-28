@@ -21,7 +21,7 @@ class Onb2Screen extends StatelessWidget {
 
   void _goOnb3(BuildContext context) {
     if (context.mounted) {
-      context.go(AppRoutes.onboardingOnb3);
+      context.go(AppRoutes.onboardingLhamoIntro);
     }
   }
 
@@ -91,7 +91,7 @@ class Onb2Screen extends StatelessWidget {
     await _showMicRequiredDialog(context);
   }
 
-  static const int totalSteps = 6;
+  static const int totalSteps = 7;
   static const int currentStep = 3;
 
   /// HTML `.dot` inactive fill (non-active pills).
@@ -155,10 +155,7 @@ class Onb2Screen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 14),
-                    Text(
-                      'One thing before',
-                      style: AppTextStyles.heading1,
-                    ),
+                    Text('One thing before', style: AppTextStyles.heading1),
                     Text(
                       'we begin',
                       style: AppTextStyles.heading1.copyWith(
@@ -249,7 +246,7 @@ class Onb2Screen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   GestureDetector(
-                    onTap: () => context.go(AppRoutes.onboardingOnb3),
+                    onTap: () => _goOnb3(context),
                     child: Container(
                       height: 48,
                       alignment: Alignment.center,

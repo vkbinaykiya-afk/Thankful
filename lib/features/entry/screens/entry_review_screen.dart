@@ -53,8 +53,8 @@ class EntryReviewScreen extends StatefulWidget {
   /// Pre-filled session transcript (skips Whisper when non-empty).
   final String? initialTranscript;
 
-  static const int totalSteps = 6;
-  static const int currentStep = 5;
+  static const int totalSteps = 7;
+  static const int currentStep = 6;
 
   static const Color _dotIdle = Color(0xFFD8D2CA);
 
@@ -151,16 +151,16 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
 
   void _startLoadingMessages() {
     _loadingMessageTimer?.cancel();
-    _loadingMessageTimer = Timer.periodic(
-      const Duration(milliseconds: 1800),
-      (_) {
-        if (!mounted) return;
-        setState(() {
-          _loadingMessageIndex =
-              (_loadingMessageIndex + 1) % EntryReviewScreen._loadingMessages.length;
-        });
-      },
-    );
+    _loadingMessageTimer = Timer.periodic(const Duration(milliseconds: 1800), (
+      _,
+    ) {
+      if (!mounted) return;
+      setState(() {
+        _loadingMessageIndex =
+            (_loadingMessageIndex + 1) %
+            EntryReviewScreen._loadingMessages.length;
+      });
+    });
   }
 
   void _stopLoadingMessages() {
@@ -234,12 +234,8 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final raw =
-        GoRouterState.of(context).uri.queryParameters['recordingPath'];
-    developer.log(
-      'DEBUG recordingPath: $raw',
-      name: 'Thankful.EntryReview',
-    );
+    final raw = GoRouterState.of(context).uri.queryParameters['recordingPath'];
+    developer.log('DEBUG recordingPath: $raw', name: 'Thankful.EntryReview');
     if (_recordingPath == null && raw != null && raw.isNotEmpty) {
       // Query values are usually decoded once; decode again if the path was
       // over-encoded when navigating.
@@ -267,8 +263,9 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
     _startLoadingMessages();
     setState(() => _isEnriching = true);
     try {
-      final enrichment =
-          await const EntryEnrichmentService().enrich(rawTranscript);
+      final enrichment = await const EntryEnrichmentService().enrich(
+        rawTranscript,
+      );
       if (!mounted) return;
       setState(() {
         _enrichment = enrichment;
@@ -308,10 +305,8 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
             const SizedBox(height: AppSpacing.lg),
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 400),
-              transitionBuilder: (child, animation) => FadeTransition(
-                opacity: animation,
-                child: child,
-              ),
+              transitionBuilder: (child, animation) =>
+                  FadeTransition(opacity: animation, child: child),
               child: Text(
                 EntryReviewScreen._loadingMessages[_loadingMessageIndex],
                 key: ValueKey(_loadingMessageIndex),
@@ -328,9 +323,9 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
   }
 
   TextStyle get _pillTextStyle => AppTextStyles.caption.copyWith(
-        fontSize: 12,
-        color: AppColors.textSecondary,
-      );
+    fontSize: 12,
+    color: AppColors.textSecondary,
+  );
 
   Widget _buildPill(String label) {
     return Container(
@@ -417,9 +412,9 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Playback error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Playback error: $e')));
       }
     }
     if (mounted) setState(() {});
@@ -463,9 +458,9 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
     final localPath = _recordingPath;
     if (localPath == null || localPath.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No recording to save.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No recording to save.')));
       return;
     }
 
@@ -506,8 +501,7 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
     try {
       final row = <String, dynamic>{
         'user_id': user.id,
-        'transcript':
-            _enrichment?.formattedTranscript ?? _transcript ?? '',
+        'transcript': _enrichment?.formattedTranscript ?? _transcript ?? '',
         'created_at': DateTime.now().toUtc().toIso8601String(),
         'summary': _enrichment?.summary,
         'tags': _enrichment?.tags,
@@ -534,13 +528,17 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save entry: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not save entry: $e')));
     }
   }
 
-  Widget _buildEntryContent(BuildContext context, DateTime now, bool hasRecording) {
+  Widget _buildEntryContent(
+    BuildContext context,
+    DateTime now,
+    bool hasRecording,
+  ) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.screenH,
@@ -566,9 +564,7 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
           Text('Your entry', style: AppTextStyles.heading1),
           Text(
             'is ready',
-            style: AppTextStyles.heading1.copyWith(
-              color: AppColors.primary,
-            ),
+            style: AppTextStyles.heading1.copyWith(color: AppColors.primary),
           ),
           if (_enrichment != null) ...[
             const SizedBox(height: 8),
@@ -690,8 +686,7 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     final now = DateTime.now();
-    final hasRecording =
-        _recordingPath != null && _recordingPath!.isNotEmpty;
+    final hasRecording = _recordingPath != null && _recordingPath!.isNotEmpty;
     final isLoading = _isTranscribing || _isEnriching;
 
     return Scaffold(
@@ -728,10 +723,10 @@ class _EntryReviewScreenState extends State<EntryReviewScreen>
                     onPressed: isLoading
                         ? null
                         : () => unawaited(
-                              SubscriptionService.navigateToSessionOrPaywall(
-                                context,
-                              ),
+                            SubscriptionService.navigateToSessionOrPaywall(
+                              context,
                             ),
+                          ),
                   ),
                 ],
               ),

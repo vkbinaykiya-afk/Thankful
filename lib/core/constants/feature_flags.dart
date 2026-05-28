@@ -12,11 +12,11 @@ class FeatureFlags {
 
   /// Lifetime free journal entries before paywall (production: 5).
   /// Gate applies only to **creating** new sessions, not viewing/sharing on home.
-  static const int subscriptionFreeSessionLimit = 5;
+  static const int subscriptionFreeSessionLimit = 50;
 
   /// When true, ignore RevenueCat active entitlement for the session gate only.
   /// Keep false for TestFlight / App Store — must be false or subscribers stay on paywall.
-  static const bool subscriptionIgnoreRevenueCatEntitlement = false;
+  static const bool subscriptionIgnoreRevenueCatEntitlement = true;
 
   /// Tap "Subscription debug" on Account screen (RevenueCat + gate state).
   /// Set false before App Store submission.

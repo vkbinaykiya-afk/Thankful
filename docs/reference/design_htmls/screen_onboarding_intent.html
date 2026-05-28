@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thankful — What Brings You Here Screen</title>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #E8E4DC;
+    font-family: 'Figtree', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 40px 24px;
+    gap: 12px;
+  }
+
+  .label { font-size: 11px; font-weight: 400; color: #A89E8E; }
+
+  .phone {
+    width: 375px;
+    height: 812px;
+    background: #FAFAF8;
+    border-radius: 44px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .status {
+    height: 44px;
+    flex-shrink: 0;
+    padding: 0 28px;
+    display: flex;
+    align-items: center;
+  }
+
+  .status-time { font-size: 15px; font-weight: 500; color: #2C2416; }
+
+  .content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0 22px;
+    overflow: hidden;
+  }
+
+  .app-title {
+    font-size: 18px;
+    font-weight: 500;
+    color: #5E9A78;
+    text-align: center;
+    margin-bottom: 6px;
+  }
+
+  .progress {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    margin-bottom: 24px;
+  }
+
+  .dot { height: 4px; border-radius: 2px; }
+  .dot.active  { width: 14px; background: #5E9A78; }
+  .dot.inactive { width: 4px;  background: #D8D2CA; }
+
+  .heading-line1 {
+    font-size: 22px;
+    font-weight: 500;
+    color: #2C2416;
+    line-height: 1.25;
+  }
+
+  .heading-line2 {
+    font-size: 22px;
+    font-weight: 500;
+    color: #5E9A78;
+    line-height: 1.25;
+    margin-bottom: 6px;
+  }
+
+  .sub-copy {
+    font-size: 13px;
+    font-weight: 400;
+    color: #A89E8E;
+    line-height: 1.5;
+    margin-bottom: 24px;
+  }
+
+  .options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+  }
+
+  .option-card {
+    background: #F0EDE6;
+    border-radius: 16px;
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border: 1.5px solid transparent;
+    cursor: pointer;
+  }
+
+  .option-card.selected { border-color: #5E9A78; }
+
+  .option-check {
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    border: 1.5px solid #A89E8E;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .option-card.selected .option-check {
+    background: #5E9A78;
+    border-color: #5E9A78;
+  }
+
+  .check-icon {
+    display: none;
+    width: 11px;
+    height: 8px;
+  }
+
+  .option-card.selected .check-icon { display: block; }
+
+  .option-text {
+    font-size: 15px;
+    font-weight: 400;
+    color: #7A7060;
+    line-height: 1.4;
+  }
+
+  .option-card.selected .option-text {
+    font-weight: 500;
+    color: #2C2416;
+  }
+
+  .bottom {
+    padding: 18px 22px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .cta-btn {
+    width: 100%;
+    height: 52px;
+    background: #E09050;
+    border-radius: 100px;
+    border: none;
+    font-family: 'Figtree', sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    color: #FAFAF8;
+    cursor: pointer;
+  }
+
+  .skip-btn {
+    width: 100%;
+    height: 52px;
+    background: transparent;
+    border-radius: 100px;
+    border: 1.5px solid #5E9A78;
+    font-family: 'Figtree', sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    color: #5E9A78;
+    cursor: pointer;
+  }
+
+  .home-indicator {
+    width: 56px;
+    height: 4px;
+    background: rgba(44,36,22,0.14);
+    border-radius: 2px;
+    margin: 0 auto;
+  }
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="status"><span class="status-time">9:41</span></div>
+  <div class="content">
+    <div class="app-title">thankful</div>
+    <div class="progress">
+      <div class="dot inactive"></div>
+      <div class="dot inactive"></div>
+      <div class="dot inactive"></div>
+      <div class="dot inactive"></div>
+      <div class="dot active"></div>
+      <div class="dot inactive"></div>
+      <div class="dot inactive"></div>
+      <div class="dot inactive"></div>
+    </div>
+
+    <div class="heading-line1">What brings</div>
+    <div class="heading-line2">you here?</div>
+    <div class="sub-copy">Select all that apply. I will carry this into our first conversation.</div>
+
+    <div class="options">
+      <div class="option-card selected" onclick="select(this)">
+        <div class="option-check">
+          <svg class="check-icon" viewBox="0 0 11 8" fill="none">
+            <path d="M1 4L4 7L10 1" stroke="#FAFAF8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <span class="option-text">Finding calm</span>
+      </div>
+      <div class="option-card" onclick="select(this)">
+        <div class="option-check">
+          <svg class="check-icon" viewBox="0 0 11 8" fill="none">
+            <path d="M1 4L4 7L10 1" stroke="#FAFAF8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <span class="option-text">Feeling grateful</span>
+      </div>
+      <div class="option-card" onclick="select(this)">
+        <div class="option-check">
+          <svg class="check-icon" viewBox="0 0 11 8" fill="none">
+            <path d="M1 4L4 7L10 1" stroke="#FAFAF8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <span class="option-text">Working through feelings</span>
+      </div>
+      <div class="option-card" onclick="select(this)">
+        <div class="option-check">
+          <svg class="check-icon" viewBox="0 0 11 8" fill="none">
+            <path d="M1 4L4 7L10 1" stroke="#FAFAF8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <span class="option-text">Building a daily habit</span>
+      </div>
+      <div class="option-card" onclick="select(this)">
+        <div class="option-check">
+          <svg class="check-icon" viewBox="0 0 11 8" fill="none">
+            <path d="M1 4L4 7L10 1" stroke="#FAFAF8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <span class="option-text">Just exploring</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom">
+    <button class="cta-btn">Continue</button>
+    <button class="skip-btn">Skip for now</button>
+    <div class="home-indicator"></div>
+  </div>
+</div>
+
+<span class="label">onboarding_intent · step 5 of 8</span>
+
+<script>
+function select(el) {
+  el.classList.toggle('selected');
+}
+</script>
+
+</body>
+</html>

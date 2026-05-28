@@ -17,7 +17,7 @@ import '../../../shared/widgets/thankful_app_title.dart';
 class Onb1Screen extends StatefulWidget {
   const Onb1Screen({super.key});
 
-  static const int totalSteps = 6;
+  static const int totalSteps = 7;
   static const int currentStep = 2;
 
   @override
@@ -45,8 +45,7 @@ class _Onb1ScreenState extends State<Onb1Screen>
     (
       n: '3',
       title: 'Your entry is ready',
-      subtitle:
-          'We turn your words into a journal you can read and keep.',
+      subtitle: 'We turn your words into a journal you can read and keep.',
     ),
   ];
 
@@ -206,8 +205,7 @@ class _Onb1ScreenState extends State<Onb1Screen>
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: AppColors.cta,
-                        borderRadius:
-                            BorderRadius.circular(AppRadius.full),
+                        borderRadius: BorderRadius.circular(AppRadius.full),
                       ),
                       child: Text(
                         'Continue',

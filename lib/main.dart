@@ -29,6 +29,8 @@ import 'features/onboarding/screens/onb1_screen.dart';
 import 'features/onboarding/screens/onb2_screen.dart';
 import 'features/onboarding/screens/onb3_screen.dart';
 import 'features/onboarding/screens/onboarding_convo_screen.dart';
+import 'features/onboarding/screens/onboarding_intent_screen.dart';
+import 'features/onboarding/screens/onboarding_lhamo_intro_screen.dart';
 import 'features/paywall/screens/paywall_screen.dart';
 
 String? _trimEnv(String? raw) {
@@ -73,6 +75,8 @@ bool _isOnboardingCompleteValue(dynamic value) {
 bool _isOnboardingPath(String location) {
   return location == AppRoutes.onboardingOnb1 ||
       location == AppRoutes.onboardingOnb2 ||
+      location == AppRoutes.onboardingLhamoIntro ||
+      location == AppRoutes.onboardingIntent ||
       location == AppRoutes.onboardingOnb3 ||
       location == AppRoutes.demo;
 }
@@ -81,10 +85,11 @@ Future<bool> _queryOnboardingComplete(String userId) async {
   try {
     final row = Map<String, dynamic>.from(
       await Supabase.instance.client
-          .from('users')
-          .select('onboarding_complete')
-          .eq('id', userId)
-          .single() as Map,
+              .from('users')
+              .select('onboarding_complete')
+              .eq('id', userId)
+              .single()
+          as Map,
     );
     return _isOnboardingCompleteValue(row['onboarding_complete']);
   } catch (_) {
@@ -99,14 +104,9 @@ Future<String?> _thankfulAuthRedirect(
   if (!SupabaseService.isInitialized) return null;
 
   final location = state.matchedLocation;
-  final hasSession =
-      Supabase.instance.client.auth.currentSession != null;
+  final hasSession = Supabase.instance.client.auth.currentSession != null;
 
-  const publicPaths = {
-    AppRoutes.login,
-    AppRoutes.signup,
-    AppRoutes.launch,
-  };
+  const publicPaths = {AppRoutes.login, AppRoutes.signup, AppRoutes.launch};
 
   if (!hasSession) {
     if (!publicPaths.contains(location)) {
@@ -152,6 +152,14 @@ GoRouter _thankfulGoRouter({
         builder: (_, _) => const Onb2Screen(),
       ),
       GoRoute(
+        path: AppRoutes.onboardingLhamoIntro,
+        builder: (_, _) => const OnboardingLhamoIntroScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.onboardingIntent,
+        builder: (_, _) => const OnboardingIntentScreen(),
+      ),
+      GoRoute(
         path: AppRoutes.onboardingOnb3,
         builder: (_, _) => const Onb3Screen(),
       ),
@@ -159,7 +167,10 @@ GoRouter _thankfulGoRouter({
         path: AppRoutes.onboardingConvo,
         builder: (_, _) => const OnboardingConvoScreen(),
       ),
-      GoRoute(path: AppRoutes.demo, builder: (_, _) => const DemoSessionScreen()),
+      GoRoute(
+        path: AppRoutes.demo,
+        builder: (_, _) => const DemoSessionScreen(),
+      ),
       GoRoute(
         path: AppRoutes.paywall,
         builder: (context, state) {
@@ -239,8 +250,10 @@ Future<void> main() async {
   );
 
   const defineUrl = String.fromEnvironment('SUPABASE_URL', defaultValue: '');
-  const defineKey =
-      String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: '');
+  const defineKey = String.fromEnvironment(
+    'SUPABASE_ANON_KEY',
+    defaultValue: '',
+  );
 
   final urlDot = dotenv.isInitialized
       ? _trimEnv(dotenv.env['SUPABASE_URL'])
@@ -249,10 +262,10 @@ Future<void> main() async {
       ? _trimEnv(dotenv.env['SUPABASE_ANON_KEY'])
       : null;
 
-  final url =
-      (urlDot != null && urlDot.isNotEmpty) ? urlDot : defineUrl.trim();
-  final anonKey =
-      (keyDot != null && keyDot.isNotEmpty) ? keyDot : defineKey.trim();
+  final url = (urlDot != null && urlDot.isNotEmpty) ? urlDot : defineUrl.trim();
+  final anonKey = (keyDot != null && keyDot.isNotEmpty)
+      ? keyDot
+      : defineKey.trim();
 
   var initialLocation = AppRoutes.login;
   if (url.isNotEmpty && anonKey.isNotEmpty) {
@@ -267,8 +280,7 @@ Future<void> main() async {
       );
       SupabaseService.markInitialized();
       await _awaitSupabaseAuthHydration();
-      final hasSession =
-          Supabase.instance.client.auth.currentSession != null;
+      final hasSession = Supabase.instance.client.auth.currentSession != null;
       print('hasSession: $hasSession');
       if (hasSession) {
         final user = Supabase.instance.client.auth.currentUser;
@@ -278,13 +290,15 @@ Future<void> main() async {
           try {
             row = Map<String, dynamic>.from(
               await Supabase.instance.client
-                  .from('users')
-                  .select('onboarding_complete')
-                  .eq('id', user.id)
-                  .single() as Map,
+                      .from('users')
+                      .select('onboarding_complete')
+                      .eq('id', user.id)
+                      .single()
+                  as Map,
             );
-            onboardingComplete =
-                _isOnboardingCompleteValue(row['onboarding_complete']);
+            onboardingComplete = _isOnboardingCompleteValue(
+              row['onboarding_complete'],
+            );
           } catch (_) {
             onboardingComplete = false;
           }
@@ -329,9 +343,7 @@ Future<void> main() async {
   }
 
   final refreshListenable = SupabaseService.isInitialized
-      ? GoRouterRefreshStream(
-          Supabase.instance.client.auth.onAuthStateChange,
-        )
+      ? GoRouterRefreshStream(Supabase.instance.client.auth.onAuthStateChange)
       : null;
 
   final router = _thankfulGoRouter(

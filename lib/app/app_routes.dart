@@ -7,6 +7,8 @@ abstract final class AppRoutes {
   static const login = '/login';
   static const onboardingOnb1 = '/onboarding/onb1';
   static const onboardingOnb2 = '/onboarding/onb2';
+  static const onboardingLhamoIntro = '/onboarding/lhamo-intro';
+  static const onboardingIntent = '/onboarding/intent';
   static const onboardingOnb3 = '/onboarding/onb3';
   static const onboardingConvo = '/onboarding/convo';
   static const demo = '/demo';

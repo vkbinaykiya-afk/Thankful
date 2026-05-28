@@ -8,7 +8,9 @@ import '../features/onboarding/screens/launch_screen.dart';
 import '../features/onboarding/screens/onb1_screen.dart';
 import '../features/onboarding/screens/onb2_screen.dart';
 import '../features/onboarding/screens/onb3_screen.dart';
+import '../features/onboarding/screens/onboarding_intent_screen.dart';
 import '../features/onboarding/screens/onboarding_convo_screen.dart';
+import '../features/onboarding/screens/onboarding_lhamo_intro_screen.dart';
 import '../features/paywall/screens/paywall_screen.dart';
 import '../features/home/screens/home_screen.dart';
 import '../features/journal/screens/journal_listing_screen.dart';
@@ -30,6 +32,14 @@ final appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.onboardingOnb2,
       builder: (_, _) => const Onb2Screen(),
+    ),
+    GoRoute(
+      path: AppRoutes.onboardingLhamoIntro,
+      builder: (context, state) => const OnboardingLhamoIntroScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.onboardingIntent,
+      builder: (context, state) => const OnboardingIntentScreen(),
     ),
     GoRoute(
       path: AppRoutes.onboardingOnb3,
@@ -60,7 +70,10 @@ final appRouter = GoRouter(
       path: AppRoutes.cancelConfirm,
       builder: (_, _) => const CancelConfirmScreen(),
     ),
-    GoRoute(path: AppRoutes.session, builder: (_, _) => const OnboardingConvoScreen()),
+    GoRoute(
+      path: AppRoutes.session,
+      builder: (_, _) => const OnboardingConvoScreen(),
+    ),
     GoRoute(
       path: AppRoutes.entryReview,
       builder: (context, state) {

@@ -302,13 +302,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -346,7 +342,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "APP_PATH=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\"\n\nfind \"$APP_PATH\" -name '*.framework' -type d | while read -r FRAMEWORK; do\n    FRAMEWORK_EXECUTABLE_NAME=$(defaults read \"$FRAMEWORK/Info.plist\" CFBundleExecutable 2>/dev/null)\n    FRAMEWORK_EXECUTABLE_PATH=\"$FRAMEWORK/$FRAMEWORK_EXECUTABLE_NAME\"\n    \n    if [ ! -f \"$FRAMEWORK_EXECUTABLE_PATH\" ]; then\n        continue\n    fi\n    \n    echo \"Checking $FRAMEWORK_EXECUTABLE_NAME\"\n    lipo -info \"$FRAMEWORK_EXECUTABLE_PATH\" 2>/dev/null || continue\n    \n    # Remove x86_64 simulator slice\n    lipo -remove x86_64 \"$FRAMEWORK_EXECUTABLE_PATH\" -output \"$FRAMEWORK_EXECUTABLE_PATH\" 2>/dev/null || true\n    \n    # Remove i386 simulator slice  \n    lipo -remove i386 \"$FRAMEWORK_EXECUTABLE_PATH\" -output \"$FRAMEWORK_EXECUTABLE_PATH\" 2>/dev/null || true\n    \n    # Handle arm64 simulator slice using vtool\n    if vtool -show-build \"$FRAMEWORK_EXECUTABLE_PATH\" 2>/dev/null | grep -q \"IOSSIMULATOR\"; then\n        echo \"Removing arm64 simulator slice from $FRAMEWORK_EXECUTABLE_NAME\"\n        # Extract only the iOS arm64 slice\n        python3 -c \"\nimport subprocess, sys, os\n\npath = sys.argv[1]\nresult = subprocess.run(['vtool', '-show-build', path], capture_output=True, text=True)\n\nif 'IOSSIMULATOR' in result.stdout:\n    tmp = path + '.tmp'\n    os.rename(path, tmp)\n    subprocess.run(['lipo', tmp, '-extract', 'arm64', '-output', path])\n    # Verify it's now iOS not simulator\n    vtool_result = subprocess.run(['vtool', '-set-build-version', 'ios', '16.0', '16.0', '-replace', '-output', path, path], capture_output=True)\n    os.remove(tmp)\n    print(f'Fixed simulator slice in {os.path.basename(path)}')\n\" \"$FRAMEWORK_EXECUTABLE_PATH\" 2>/dev/null || true\n    fi\ndone\n";
+			shellScript = "echo \"Skipping legacy framework-slice mutation script (disabled to prevent App.framework corruption on simulator installs).\"\n";
 		};
 		9BAF18132FC6EF9200E5A842 /* Run Script */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -375,13 +371,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -618,7 +610,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = AppIcon;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
@@ -675,7 +667,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = AppIcon;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";

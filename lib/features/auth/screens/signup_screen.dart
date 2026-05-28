@@ -20,6 +20,8 @@ import '../google_auth_helpers.dart';
 /// with auth CTAs and footer per signup HTML.
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
+  static const int totalSteps = 7;
+  static const int currentStep = 1;
 
   @override
   State<SignupScreen> createState() => _SignupScreenState();
@@ -61,8 +63,7 @@ class _SignupScreenState extends State<SignupScreen>
       _carouselTimer = Timer.periodic(const Duration(seconds: 3), (_) {
         if (!mounted || !_pageController.hasClients) return;
         final next =
-            ((_pageController.page?.round() ?? _pageIndex) + 1) %
-                _words.length;
+            ((_pageController.page?.round() ?? _pageIndex) + 1) % _words.length;
         _pageController.animateToPage(
           next,
           duration: const Duration(milliseconds: 500),
@@ -218,8 +219,7 @@ class _SignupScreenState extends State<SignupScreen>
                   Center(
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onTap: () =>
-                          GoRouter.of(context).push(AppRoutes.login),
+                      onTap: () => GoRouter.of(context).push(AppRoutes.login),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
                           vertical: 10,

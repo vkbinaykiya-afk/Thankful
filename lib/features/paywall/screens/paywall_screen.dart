@@ -21,16 +21,13 @@ import '../../../shared/widgets/primary_button.dart';
 ///
 /// **false** — same UI without progress (in-app nudges). Use `context.go(paywall)` with no `extra`.
 class PaywallScreen extends StatefulWidget {
-  const PaywallScreen({
-    super.key,
-    this.showOnboardingProgress = false,
-  });
+  const PaywallScreen({super.key, this.showOnboardingProgress = false});
 
   /// Dot strip under app title (onboarding completion only).
   final bool showOnboardingProgress;
 
-  static const int totalSteps = 6;
-  static const int currentStep = 6;
+  static const int totalSteps = 7;
+  static const int currentStep = 7;
   static const Color _dotIdle = Color(0xFFD8D2CA);
 
   @override
@@ -60,7 +57,6 @@ class _PaywallScreenState extends State<PaywallScreen> {
   String _monthlyPrice = '\$4.99';
   String _annualPrice = '\$29.99';
   String _annualMonthlyPrice = '\$2.50';
-  String _annualYearlyPrice = '\$29.99';
 
   @override
   void initState() {
@@ -74,7 +70,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
         if (!mounted || !_carouselController.hasClients) return;
         final next =
             ((_carouselController.page?.round() ?? _carouselIndex) + 1) %
-                _carouselWords.length;
+            _carouselWords.length;
         _carouselController.animateToPage(
           next,
           duration: const Duration(milliseconds: 500),
@@ -88,8 +84,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
     final fromDb = await OnboardingProgressVisibility.shouldShowProgressStrip();
     if (!mounted) return;
     setState(() {
-      _showOnboardingProgress =
-          widget.showOnboardingProgress && fromDb;
+      _showOnboardingProgress = widget.showOnboardingProgress && fromDb;
     });
   }
 
@@ -103,7 +98,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
   /// Home exit from paywall. Onboarding complete is set here (not on purchase).
   Future<void> _leavePaywallToHome() async {
-    final markComplete = widget.showOnboardingProgress ||
+    final markComplete =
+        widget.showOnboardingProgress ||
         await OnboardingProgressVisibility.shouldShowProgressStrip();
     if (markComplete) {
       await OnboardingProgressVisibility.markOnboardingComplete();
@@ -130,7 +126,6 @@ class _PaywallScreenState extends State<PaywallScreen> {
         _monthlyPrice = plans.monthlyPrice;
         _annualPrice = plans.annualYearlyPrice;
         _annualMonthlyPrice = plans.annualMonthlyPrice;
-        _annualYearlyPrice = plans.annualYearlyPrice;
         _isLoadingOffering = false;
       });
       print(
@@ -162,9 +157,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
   void _showPaywallMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _onPurchaseTapped() async {
@@ -390,9 +385,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         );
                       }),
                     ),
-                    const Padding(
-                      padding: EdgeInsets.only(top: 4, bottom: 2),
-                    ),
+                    const Padding(padding: EdgeInsets.only(top: 4, bottom: 2)),
                     const SizedBox(height: 18),
                     if (_isLoadingOffering)
                       const Center(
@@ -445,8 +438,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     label: _isLoadingOffering
                         ? 'Loading plans…'
                         : !_hasSelectedPlan
-                            ? 'Plans unavailable'
-                            : 'Start 3-day free trial',
+                        ? 'Plans unavailable'
+                        : 'Start 3-day free trial',
                     isLoading: _isPurchasing || _isLoadingOffering,
                     onPressed: _canPurchase
                         ? () => unawaited(_onPurchaseTapped())
@@ -509,8 +502,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                       width: 56,
                       height: 3,
                       decoration: BoxDecoration(
-                        color:
-                            AppColors.textPrimary.withValues(alpha: 0.14),
+                        color: AppColors.textPrimary.withValues(alpha: 0.14),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -570,8 +562,7 @@ class _PlanCard extends StatelessWidget {
           curve: Curves.easeIn,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color:
-                selected ? AppColors.surfaceRaised : AppColors.surface,
+            color: selected ? AppColors.surfaceRaised : AppColors.surface,
             borderRadius: BorderRadius.circular(AppRadius.lg),
             border: Border.all(
               color: selected ? AppColors.primary : Colors.transparent,
@@ -613,12 +604,7 @@ class _PlanCard extends StatelessWidget {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Flexible(
-                          child: Text(
-                            title,
-                            style: _planPrimary,
-                          ),
-                        ),
+                        Flexible(child: Text(title, style: _planPrimary)),
                         if (badge != null) ...[
                           const SizedBox(width: 5),
                           Container(
@@ -628,8 +614,9 @@ class _PlanCard extends StatelessWidget {
                             ),
                             decoration: BoxDecoration(
                               color: AppColors.primary,
-                              borderRadius:
-                                  BorderRadius.circular(AppRadius.full),
+                              borderRadius: BorderRadius.circular(
+                                AppRadius.full,
+                              ),
                             ),
                             child: Text(
                               badge!,
